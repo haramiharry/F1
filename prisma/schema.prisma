@@ -1,8 +1,11 @@
 // =============================================================================
 // F1 2026 Car Intelligence — Prisma Schema
-// Part 2a: Core tables fully wired — all enums, FKs, source_provenance,
-//          car_field_status, driver_team_stints.
-// Single canonical file. Part 2b extends this with the remaining 9 tables.
+// Complete schema: all 17 tables, 15 enums, all FKs wired.
+// Part 2a tables: source_provenance, teams, drivers, cars, circuits, rounds,
+//                 sessions, car_field_status, driver_team_stints
+// Part 2b tables: circuit_profiles, circuit_dab_zones, circuit_dab_zones_staging,
+//                 session_results, fastest_laps, car_circuit_performance,
+//                 predictions, admin_review_queue
 // =============================================================================
 
 generator client {
@@ -14,13 +17,9 @@ datasource db {
 }
 
 // =============================================================================
-// ENUMS — all 15 locked values defined here in full.
-// Enums used only in Part 2b/2c tables are defined now to prevent piecemeal
-// additions and to ensure Part 2b validates without enum changes.
+// ENUMS — all 15 locked values
 // =============================================================================
 
-// Sessions within a race weekend. round_aggregate = rolled-up record
-// calculated after the race; canonical for non-Weekend views.
 enum SessionType {
   fp1
   fp2
@@ -32,22 +31,18 @@ enum SessionType {
   round_aggregate
 }
 
-// Race weekend lifecycle.
 enum RoundStatus {
   upcoming
   in_progress
   completed
 }
 
-// What triggered the last round status transition.
-// data = first session data arrived; time_based = 90-min fallback; manual = admin.
 enum RoundStatusSource {
   data
   time_based
   manual
 }
 
-// Data layer classification applied to every sourced data point.
 // official   = FIA regulations or Formula1.com results pages
 // derived    = calculated from official session data
 // predicted  = model or editorial estimate (probabilistic)
@@ -59,22 +54,20 @@ enum SourceType {
   unavailable
 }
 
-// Confirmed gearbox orientation. unavailable = not publicly disclosed.
 enum GearboxType {
   longitudinal
   transverse
   unavailable
 }
 
-// Spec field availability per car. confirmed = sourced value exists.
-// unavailable = field checked, no official source found, renders as
-// "Not publicly confirmed" — no badge, no speculation.
+// confirmed   = sourced value exists and is cited
+// unavailable = field checked, no official source found
+//   Renders as "Not publicly confirmed" — no badge, no speculation.
 enum FieldAvailability {
   confirmed
   unavailable
 }
 
-// Tyre compound — used in session_results (Part 2b).
 enum TyreCompound {
   soft
   medium
@@ -83,15 +76,13 @@ enum TyreCompound {
   wet
 }
 
-// Origin of a prediction record.
-// hybrid = model baseline + editor-applied delta (both fields stored).
+// hybrid = model baseline + editor-applied delta (both fields stored separately)
 enum PredictionSourceType {
   model
   editorial
   hybrid
 }
 
-// Confidence rating on all predicted outputs.
 // low    = pre-season only / no 2026 race data for this car+circuit combo
 // medium = 1-2 sessions or circuit-similarity inference
 // high   = 3+ sessions of 2026 data for this car+circuit combo
@@ -101,7 +92,6 @@ enum ConfidenceLevel {
   high
 }
 
-// What a prediction record is modeling.
 enum PredictionType {
   fastest_lap
   strategy
@@ -109,7 +99,6 @@ enum PredictionType {
   aero_effectiveness
 }
 
-// Admin review queue item categories.
 enum AdminQueueType {
   stale_provenance
   hybrid_prediction_review
@@ -118,7 +107,6 @@ enum AdminQueueType {
   iqr_threshold_update
 }
 
-// Admin review queue item lifecycle.
 enum AdminQueueStatus {
   pending
   in_review
@@ -126,14 +114,12 @@ enum AdminQueueStatus {
   dismissed
 }
 
-// Live DAB zone record lifecycle.
-// under_correction = confidence cascade to LOW is active for this circuit.
+// under_correction = live record being corrected; confidence cascade to LOW active
 enum DabZoneStatus {
   confirmed
   under_correction
 }
 
-// Circuit-level prediction threshold source.
 // Transitions from static_default to iqr_derived after admin confirms
 // IQR calculation with 4+ circuit data points.
 enum ThresholdSource {
@@ -141,7 +127,6 @@ enum ThresholdSource {
   iqr_derived
 }
 
-// DAB zone staging record lifecycle.
 enum StagingPromotionStatus {
   pending
   promoted
@@ -149,9 +134,7 @@ enum StagingPromotionStatus {
 }
 
 // =============================================================================
-// TABLES — Part 2a: 9 tables
-// Reverse relations on each table are limited to models defined in this part.
-// Part 2b will add the remaining 9 models and extend these relations.
+// TABLES
 // =============================================================================
 
 // -----------------------------------------------------------------------------
@@ -159,8 +142,8 @@ enum StagingPromotionStatus {
 // Leaf table — zero outbound FKs. Never deleted (permanent audit trail).
 // All sourced data tables carry a non-nullable provenance_id FK to this table.
 // stale_threshold_hours: default 24h; overridable per record at ingestion time.
-//   Recommended defaults: race=24h, qualifying=12h, practice=6h, FIA docs=168h.
-// content_hash: MD5 of parsed page content. Mismatch triggers stale_since + is_stale.
+//   Recommended per session type: race=24h, qualifying=12h, practice=6h, docs=168h.
+// content_hash: MD5 of parsed page content. Mismatch sets stale_since + is_stale.
 // -----------------------------------------------------------------------------
 model SourceProvenance {
   id                    String     @id @default(cuid())
@@ -174,19 +157,21 @@ model SourceProvenance {
   is_stale              Boolean    @default(false)
   created_at            DateTime   @default(now())
 
-  // Reverse relations — Part 2a models only.
-  // Part 2b will extend with: circuit_profiles, circuit_dab_zones,
-  // session_results, fastest_laps, car_circuit_perf, predictions.
-  cars_specs       Car[]            @relation("CarSpecsProvenance")
-  car_field_status CarFieldStatus[]
+  cars_specs        Car[]                   @relation("CarSpecsProvenance")
+  car_field_status  CarFieldStatus[]
+  circuit_profiles  CircuitProfile[]
+  circuit_dab_zones CircuitDabZone[]
+  session_results   SessionResult[]
+  fastest_laps      FastestLap[]
+  car_circuit_perf  CarCircuitPerformance[]
+  predictions       Prediction[]
 
   @@map("source_provenance")
 }
 
 // -----------------------------------------------------------------------------
 // TABLE 2: teams
-// Direct Team→Driver relation removed — team membership now in driver_team_stints.
-// Team→Car relation retained (Car.team_id is stable; cars don't change teams).
+// Direct Team→Driver relation removed — membership now in driver_team_stints.
 // -----------------------------------------------------------------------------
 model Team {
   id              String    @id @default(cuid())
@@ -207,7 +192,7 @@ model Team {
 
 // -----------------------------------------------------------------------------
 // TABLE 3: drivers
-// team_id dropped — team membership now tracked via driver_team_stints.
+// team_id dropped — team membership tracked via driver_team_stints.
 // -----------------------------------------------------------------------------
 model Driver {
   id           String    @id @default(cuid())
@@ -219,7 +204,10 @@ model Driver {
   created_at   DateTime  @default(now())
   deleted_at   DateTime?
 
-  team_stints DriverTeamStint[]
+  team_stints     DriverTeamStint[]
+  session_results SessionResult[]
+  fastest_laps    FastestLap[]
+  predictions     Prediction[]
 
   @@map("drivers")
 }
@@ -227,7 +215,7 @@ model Driver {
 // -----------------------------------------------------------------------------
 // TABLE 4: cars
 // unavailable_fields JSON blob dropped — now in car_field_status (Table 16).
-// specs_provenance_id is non-nullable: every car record must cite a source.
+// specs_provenance_id non-nullable: every car record must cite a source.
 // -----------------------------------------------------------------------------
 model Car {
   id                  String           @id @default(cuid())
@@ -245,7 +233,9 @@ model Car {
   created_at          DateTime         @default(now())
   deleted_at          DateTime?
 
-  field_status CarFieldStatus[]
+  field_status        CarFieldStatus[]
+  circuit_performance CarCircuitPerformance[]
+  predictions         Prediction[]
 
   @@map("cars")
 }
@@ -265,7 +255,12 @@ model Circuit {
   created_at      DateTime  @default(now())
   deleted_at      DateTime?
 
-  rounds Round[]
+  profile             CircuitProfile?
+  dab_zones           CircuitDabZone[]
+  dab_zones_staging   CircuitDabZoneStaging[]
+  rounds              Round[]
+  circuit_performance CarCircuitPerformance[]
+  predictions         Prediction[]
 
   @@map("circuits")
 }
@@ -273,7 +268,6 @@ model Circuit {
 // -----------------------------------------------------------------------------
 // TABLE 6: rounds
 // scheduled_start and scheduled_race dropped — all schedule times live on Session.
-// Round holds calendar identity and status only.
 // @@unique([season, round_number]) prevents duplicate round numbers per season.
 // -----------------------------------------------------------------------------
 model Round {
@@ -289,7 +283,12 @@ model Round {
   created_at          DateTime          @default(now())
   deleted_at          DateTime?
 
-  sessions Session[]
+  sessions            Session[]
+  dab_zones           CircuitDabZone[]
+  dab_zones_staging   CircuitDabZoneStaging[]
+  circuit_performance CarCircuitPerformance[]
+  fastest_laps        FastestLap[]
+  predictions         Prediction[]
 
   @@unique([season, round_number])
   @@map("rounds")
@@ -299,8 +298,7 @@ model Round {
 // TABLE 7: sessions
 // All schedule times live here — Round no longer stores scheduled_start/race.
 // attempt_number: 1 for original; increments on reschedule within same round.
-// rescheduled_from_id: self-ref FK to the cancelled session this replaces.
-// Partial unique index is a raw SQL migration (not a Prisma constraint):
+// Partial unique index enforced via raw SQL (not Prisma constraint):
 //   UNIQUE (round_id, session_type, attempt_number) WHERE session_cancelled = 0
 //   See prisma/migrations/manual/001_session_partial_unique.sql
 // -----------------------------------------------------------------------------
@@ -322,17 +320,317 @@ model Session {
   created_at          DateTime    @default(now())
   deleted_at          DateTime?
 
+  results      SessionResult[]
+  fastest_laps FastestLap[]
+
   @@map("sessions")
+}
+
+// -----------------------------------------------------------------------------
+// TABLE 8: circuit_profiles
+// One-to-one with Circuit. Analytical scoring characteristics per circuit.
+// Separate from circuits because these values update as 2026 data accumulates;
+// circuit identity fields do not change.
+// prediction_review_threshold_s: triggers "Under review" chip on hybrid
+//   predictions when model delta exceeds this value.
+//   Defaults: street circuits ~0.3s, power circuits ~0.6s, balanced ~0.45s.
+//   threshold_source transitions from static_default to iqr_derived after
+//   data_points_for_threshold >= 4 and admin confirms via review queue.
+// Soft-delete: yes (in middleware model list).
+// -----------------------------------------------------------------------------
+model CircuitProfile {
+  id                            String           @id @default(cuid())
+  circuit_id                    String           @unique
+  circuit                       Circuit          @relation(fields: [circuit_id], references: [id], onDelete: Restrict)
+  drag_sensitivity              Float
+  traction_demand               Float
+  braking_intensity             Float
+  overtaking_potential          Float
+  aero_zone_value               Float
+  baseline_fastest_lap_s        Float
+  prediction_review_threshold_s Float
+  threshold_source              ThresholdSource  @default(static_default)
+  pending_threshold_update      Float?
+  data_points_for_threshold     Int              @default(0)
+  provenance_id                 String
+  provenance                    SourceProvenance @relation(fields: [provenance_id], references: [id], onDelete: Restrict)
+  updated_at                    DateTime         @updatedAt
+  deleted_at                    DateTime?
+
+  @@map("circuit_profiles")
+}
+
+// -----------------------------------------------------------------------------
+// TABLE 9: circuit_dab_zones (live)
+// FIA-defined Drag Activation Zone boundaries per circuit per round.
+// Source: FIA Event Notes (~48-72h before first session). Admin-confirmed only.
+// Corrections: set status=under_correction, re-stage, re-promote.
+//   During under_correction: all depends_on_dab_zones records for this circuit
+//   are forcibly downgraded to LOW confidence.
+// No deleted_at — amendments use superseded_at chain.
+// superseded_by_id: self-ref forming the correction history chain.
+// -----------------------------------------------------------------------------
+model CircuitDabZone {
+  id                   String           @id @default(cuid())
+  circuit_id           String
+  circuit              Circuit          @relation(fields: [circuit_id], references: [id], onDelete: Restrict)
+  round_id             String
+  round                Round            @relation(fields: [round_id], references: [id], onDelete: Restrict)
+  zone_number          Int
+  start_reference      String
+  end_reference        String
+  activation_direction String
+  status               DabZoneStatus    @default(confirmed)
+  amendment_reason     String?
+  superseded_at        DateTime?
+  superseded_by_id     String?
+  superseded_by        CircuitDabZone?  @relation("DabZoneAmendment", fields: [superseded_by_id], references: [id])
+  supersedes           CircuitDabZone[] @relation("DabZoneAmendment")
+  provenance_id        String
+  provenance           SourceProvenance @relation(fields: [provenance_id], references: [id], onDelete: Restrict)
+  created_at           DateTime         @default(now())
+
+  @@map("circuit_dab_zones")
+}
+
+// -----------------------------------------------------------------------------
+// TABLE 10: circuit_dab_zones_staging
+// Receives parser output from the admin DAB zone ingestion endpoint.
+// All parser output lands here first. Promotion to circuit_dab_zones requires
+// explicit admin sign-off after reviewing zone SVG overlay in admin UI.
+// parse_errors: JSON array of parser warnings e.g. ["zone_3_boundary_ambiguous"].
+// No deleted_at — promotion_status tracks lifecycle.
+// -----------------------------------------------------------------------------
+model CircuitDabZoneStaging {
+  id                   String                 @id @default(cuid())
+  circuit_id           String
+  circuit              Circuit                @relation(fields: [circuit_id], references: [id], onDelete: Restrict)
+  round_id             String
+  round                Round                  @relation(fields: [round_id], references: [id], onDelete: Restrict)
+  zone_number          Int
+  start_reference      String
+  end_reference        String
+  activation_direction String
+  parse_errors         String?
+  submitted_at         DateTime               @default(now())
+  reviewed_at          DateTime?
+  reviewer_notes       String?
+  promoted_at          DateTime?
+  promotion_status     StagingPromotionStatus @default(pending)
+
+  @@map("circuit_dab_zones_staging")
+}
+
+// -----------------------------------------------------------------------------
+// TABLE 11: session_results
+// One row per driver per session. lap_time_ms in milliseconds (avoids float
+// precision issues; 1:22.091 = 82091ms; matches Formula1.com millisecond precision).
+// position null = DNF / DSQ / DNS.
+// Soft-delete: yes.
+// @@unique([session_id, driver_id]) — one result row per driver per session.
+// -----------------------------------------------------------------------------
+model SessionResult {
+  id               String           @id @default(cuid())
+  session_id       String
+  session          Session          @relation(fields: [session_id], references: [id], onDelete: Restrict)
+  driver_id        String
+  driver           Driver           @relation(fields: [driver_id], references: [id], onDelete: Restrict)
+  position         Int?
+  classified       Boolean          @default(true)
+  lap_time_ms      Int?
+  gap_to_leader_ms Int?
+  laps_completed   Int?
+  tyre_compound    TyreCompound?
+  provenance_id    String
+  provenance       SourceProvenance @relation(fields: [provenance_id], references: [id], onDelete: Restrict)
+  created_at       DateTime         @default(now())
+  deleted_at       DateTime?
+
+  @@unique([session_id, driver_id])
+  @@map("session_results")
+}
+
+// -----------------------------------------------------------------------------
+// TABLE 12: fastest_laps
+// Ingested directly from Formula1.com as OFFICIAL data — not derived from
+// session_results. Tracks the DHL Fastest Lap Award.
+// Seed anchors:
+//   VER 1:22.091 (82091ms) Round 1 Australia [Official — Formula1.com]
+//   ANT 1:35.275 (95275ms) Round 2 China     [Official — Formula1.com]
+// round_id denormalized (derivable via session.round_id) for direct award queries.
+// No deleted_at — amendments use superseded_at chain.
+// superseded_by_id: self-ref for post-race penalty amendment history.
+// -----------------------------------------------------------------------------
+model FastestLap {
+  id               String           @id @default(cuid())
+  round_id         String
+  round            Round            @relation(fields: [round_id], references: [id], onDelete: Restrict)
+  session_id       String
+  session          Session          @relation(fields: [session_id], references: [id], onDelete: Restrict)
+  driver_id        String
+  driver           Driver           @relation(fields: [driver_id], references: [id], onDelete: Restrict)
+  lap_time_ms      Int
+  lap_time_display String
+  award_eligible   Boolean          @default(true)
+  superseded_at    DateTime?
+  amendment_reason String?
+  superseded_by_id String?
+  superseded_by    FastestLap?      @relation("FastestLapAmendment", fields: [superseded_by_id], references: [id])
+  supersedes       FastestLap[]     @relation("FastestLapAmendment")
+  provenance_id    String
+  provenance       SourceProvenance @relation(fields: [provenance_id], references: [id], onDelete: Restrict)
+  created_at       DateTime         @default(now())
+
+  @@map("fastest_laps")
+}
+
+// -----------------------------------------------------------------------------
+// TABLE 13: car_circuit_performance
+// Derived performance metrics per car per circuit per round per session type.
+// session_type=round_aggregate: canonical rolled-up record for non-Weekend views.
+//   "Current view" query: session_type='round_aggregate' AND round_id=MAX(round_id)
+//   "asOfRound" query:    session_type='round_aggregate' AND round_id=?
+//   "asOfRound=0":        returns pre-season editorial baselines (round_valid_from=0)
+// depends_on_dab_zones: when true, a DAB zone correction sets
+//   recalculation_required=true and confidence cascades to LOW until job completes.
+// Amendment chain: superseded_at + superseded_by_id (same pattern as fastest_laps,
+//   predictions, circuit_dab_zones — consistent for ?amendmentHistory panel).
+// NO @@unique on the four-part key here — uniqueness on active records only is
+//   enforced by partial unique index in raw SQL migration:
+//   UNIQUE (car_id, circuit_id, round_id, session_type) WHERE superseded_at IS NULL
+//   See prisma/migrations/manual/002_car_circuit_performance_partial_unique.sql
+// Soft-delete: yes (in addition to amendment chain — belt and suspenders).
+// -----------------------------------------------------------------------------
+model CarCircuitPerformance {
+  id           String      @id @default(cuid())
+  car_id       String
+  car          Car         @relation(fields: [car_id], references: [id], onDelete: Restrict)
+  circuit_id   String
+  circuit      Circuit     @relation(fields: [circuit_id], references: [id], onDelete: Restrict)
+  round_id     String
+  round        Round       @relation(fields: [round_id], references: [id], onDelete: Restrict)
+  session_type SessionType
+
+  one_lap_pace             Float?
+  long_run_pace            Float?
+  straight_line_efficiency Float?
+  cornering_performance    Float?
+  tyre_behaviour           Float?
+  x_mode_effectiveness     Float?
+  z_mode_effectiveness     Float?
+
+  depends_on_dab_zones   Boolean @default(false)
+  recalculation_required Boolean @default(false)
+
+  superseded_at    DateTime?
+  amendment_reason String?
+  superseded_by_id String?
+  superseded_by    CarCircuitPerformance?  @relation("CcpAmendment", fields: [superseded_by_id], references: [id])
+  supersedes       CarCircuitPerformance[] @relation("CcpAmendment")
+
+  provenance_id String
+  provenance    SourceProvenance @relation(fields: [provenance_id], references: [id], onDelete: Restrict)
+  calculated_at DateTime         @default(now())
+  deleted_at    DateTime?
+
+  @@map("car_circuit_performance")
+}
+
+// -----------------------------------------------------------------------------
+// TABLE 14: predictions
+// All predictive outputs: fastest_lap, strategy, track_fit, aero_effectiveness.
+// car_id and driver_id are optional — some predictions are car-level,
+//   others are driver-level (e.g. fastest_lap), some are circuit-level only.
+// round_id optional: null for pre-season baselines (round_valid_from=0).
+// round_valid_from=0: pre-season editorial baseline.
+//   asOfRound=0 API returns WHERE round_valid_from=0 AND superseded_at IS NULL.
+// source_type=editorial: pre-season manually authored content (round_valid_from=0).
+//   Superseded when first model output generated for same (car/driver, circuit).
+//   Archived record remains for Methodology page provenance chain.
+// source_type=hybrid: original_model_output and editorial_delta both stored.
+//   editorial_review_required=true set when model recalculates.
+//   Editor has 48h to accept/adjust/hold before model output displays LOW+chip.
+//   Exception: if delta > circuit.prediction_review_threshold_s, "Under review"
+//   chip displays immediately regardless of 48h window.
+// No deleted_at — amendment chain via superseded_at.
+// -----------------------------------------------------------------------------
+model Prediction {
+  id              String         @id @default(cuid())
+  prediction_type PredictionType
+
+  car_id    String?
+  car       Car?    @relation(fields: [car_id], references: [id], onDelete: Restrict)
+  driver_id String?
+  driver    Driver? @relation(fields: [driver_id], references: [id], onDelete: Restrict)
+
+  circuit_id String
+  circuit    Circuit @relation(fields: [circuit_id], references: [id], onDelete: Restrict)
+
+  round_id         String?
+  round            Round?  @relation(fields: [round_id], references: [id], onDelete: Restrict)
+  round_valid_from Int     @default(0)
+
+  predicted_value         Float?
+  predicted_value_display String?
+  margin_of_error_ms      Float?
+  confidence              ConfidenceLevel      @default(low)
+  source_type             PredictionSourceType @default(model)
+
+  original_model_output Float?
+  editorial_delta       Float?
+  editorial_rationale   String?
+
+  superseded_at    DateTime?
+  amendment_reason String?
+  superseded_by_id String?
+  superseded_by    Prediction?  @relation("PredictionAmendment", fields: [superseded_by_id], references: [id])
+  supersedes       Prediction[] @relation("PredictionAmendment")
+
+  editorial_review_required Boolean @default(false)
+  model_recalc_pending      Boolean @default(false)
+  depends_on_dab_zones      Boolean @default(false)
+  recalculation_required    Boolean @default(false)
+
+  provenance_id String
+  provenance    SourceProvenance @relation(fields: [provenance_id], references: [id], onDelete: Restrict)
+  created_at    DateTime         @default(now())
+
+  @@map("predictions")
+}
+
+// -----------------------------------------------------------------------------
+// TABLE 15: admin_review_queue
+// Unified inbox for all review-required items across the system.
+// Polymorphic: entity_id references records in multiple tables.
+//   No DB-level FK by design. entity_type matches @@map name of target table.
+// priority: seed score stored; weekend proximity multiplier applied at query time.
+//   Formula: staleness_score + confidence_impact_score + visibility_score
+//   Weekend multiplier: ×1.5 (>8h) | ×2.0 (2-8h) | ×3.0 (30min-2h) | ×4.0 (<30min)
+// No deleted_at — resolved_at tracks closure.
+// -----------------------------------------------------------------------------
+model AdminReviewQueue {
+  id               String           @id @default(cuid())
+  queue_type       AdminQueueType
+  entity_type      String
+  entity_id        String
+  priority         Int              @default(0)
+  status           AdminQueueStatus @default(pending)
+  assigned_to      String?
+  created_at       DateTime         @default(now())
+  resolved_at      DateTime?
+  resolution_notes String?
+
+  @@map("admin_review_queue")
 }
 
 // -----------------------------------------------------------------------------
 // TABLE 16: car_field_status
 // Replaces Car.unavailable_fields JSON blob.
-// One row per spec field per car. Enables cross-car field availability queries:
+// One row per spec field per car. Enables cross-car queries:
 //   WHERE field_name = 'weight_kg' AND status = 'confirmed'
-// @@unique([car_id, field_name]) enforces one status per field per car.
-// provenance_id: non-nullable — every status row must cite a source
-//   (confirmed = cite the document; unavailable = cite the check that found nothing).
+// provenance_id non-nullable for both statuses:
+//   confirmed   → cite the official document
+//   unavailable → cite the check that found no public source
 // -----------------------------------------------------------------------------
 model CarFieldStatus {
   id            String            @id @default(cuid())
@@ -353,11 +651,9 @@ model CarFieldStatus {
 // Replaces Driver.team_id.
 // from_round: round_number of first session_result with this team (data-anchored).
 // to_round: null = active stint. Closed atomically when new stint opens.
-// @@unique([driver_id, season, from_round]) prevents duplicate stint starts.
-// Overlapping to_round values prevented by application-layer transaction only
-//   (SQLite/Prisma do not support range exclusion constraints).
-// Mid-weekend replacements: both drivers may share the same round number.
-//   session_results is authoritative for within-round team attribution.
+// Overlapping to_round values prevented by application-layer transaction only.
+// Mid-weekend replacements: session_results is authoritative for within-round
+//   team attribution; both drivers may share the same round number boundary.
 // -----------------------------------------------------------------------------
 model DriverTeamStint {
   id         String   @id @default(cuid())
