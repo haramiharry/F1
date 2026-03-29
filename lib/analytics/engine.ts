@@ -3,12 +3,27 @@
 // enrichRecord(recordId):
 //   Takes a CarCircuitPerformance record id that was written by the Step 4
 //   processors (session-performance.ts or round-aggregate.ts) with only
-//   one_lap_pace and long_run_pace populated. Computes the remaining five
+//   one_lap_pace and long_run_pace populated. Computes the remaining derived
 //   dimensions, determines confidence, and supersedes the Step 4 record
 //   with a fully enriched record.
 //
-//   If the record already has straight_line_efficiency populated, it was
-//   already enriched — the function is a no-op for that record.
+//   Enrichment marker: x_mode_effectiveness IS NULL.
+//   x_mode_effectiveness is populated for every record that has a non-null
+//   one_lap_pace, regardless of session type. Step 4 processors never write it.
+//
+//   Dimension population by session type:
+//     straight_line_efficiency  round_aggregate only (cross-circuit signal required)
+//     cornering_performance     round_aggregate only (cross-circuit signal required)
+//     tyre_behaviour            any session where both pace metrics are present
+//     x_mode_effectiveness      all sessions with one_lap_pace (enrichment marker)
+//     z_mode_effectiveness      all sessions with one_lap_pace
+//
+//   straight_line_efficiency and cornering_performance are null for fp1/fp2/fp3/
+//   qualifying/sprint_qualifying/sprint records. At a single circuit, two cars
+//   with identical one_lap_pace produce identical scores — the car-level signal
+//   only emerges when comparing the same car's pace across circuits of different
+//   drag_sensitivity / traction_demand. That cross-circuit comparison is only
+//   meaningful for round_aggregate records.
 //
 // enrichSessionRecords(target):
 //   Finds all unenriched active records for a session and calls enrichRecord
@@ -18,7 +33,9 @@
 //   car_circuit_performance — amendment chain (Step 4 record → enriched record)
 //   predictions (track_fit) — via track-fit.ts (round_aggregate sessions only)
 //   predictions (track_fit) — pace trend via pace-trend.ts (round_aggregate only)
-//   predictions (aero_effectiveness) — X vs Z Mode advantage
+//   predictions (aero_effectiveness) — X vs Z Mode advantage, only when
+//     round.dab_zones_confirmed = true. If false, the prediction is skipped.
+//     POST /api/analytics/recalculate will pick it up after admin promotion.
 //
 // Confidence auto-set to LOW before Round 1 (0 prior data points), escalating
 // to MEDIUM (1–2 sessions) then HIGH (3+ sessions) as data accumulates.
@@ -163,36 +180,45 @@ export async function enrichRecord(recordId: string): Promise<boolean> {
       session_type: true,
       one_lap_pace: true,
       long_run_pace: true,
-      straight_line_efficiency: true,
+      x_mode_effectiveness: true,  // enrichment marker — null = not yet enriched
       superseded_at: true,
       deleted_at: true,
-      round: { select: { round_number: true } },
+      round: { select: { round_number: true, dab_zones_confirmed: true } },
     },
   });
 
   // Guard: skip if already enriched, superseded, or deleted.
   if (!record) return false;
   if (record.superseded_at !== null || record.deleted_at !== null) return false;
-  if (record.straight_line_efficiency !== null) return false; // already done
+  if (record.x_mode_effectiveness !== null) return false; // already enriched
 
   const ctx = await loadCircuitContext(record.circuit_id, record.round_id);
   if (!ctx) {
-    // No circuit profile — can compute metrics but with zero weights.
-    // Abort rather than write zeros; admin should create the profile first.
+    // No circuit profile — abort rather than write zero-weight metrics.
+    // Admin must create the CircuitProfile record first.
     return false;
   }
 
-  // Compute all five derived dimensions.
-  const straight = computeStraightLineEfficiency(
-    record.one_lap_pace,
-    ctx.drag_sensitivity
-  );
-  const cornering = computeCorneringPerformance(
-    record.one_lap_pace,
-    ctx.traction_demand,
-    ctx.braking_intensity
-  );
+  const isAggregate = record.session_type === "round_aggregate";
+
+  // straight_line_efficiency and cornering_performance are cross-circuit metrics:
+  // a single circuit visit reveals nothing about a car's general capability in
+  // these dimensions. Only populate on round_aggregate records, where the value
+  // is computed once the car has visited circuits of varying profile.
+  const straight = isAggregate
+    ? computeStraightLineEfficiency(record.one_lap_pace, ctx.drag_sensitivity)
+    : null;
+  const cornering = isAggregate
+    ? computeCorneringPerformance(
+        record.one_lap_pace,
+        ctx.traction_demand,
+        ctx.braking_intensity
+      )
+    : null;
+
   const tyre = computeTyreBehaviour(record.one_lap_pace, record.long_run_pace);
+  // x_mode and z_mode are computed for all sessions — x_mode_effectiveness
+  // doubles as the enrichment marker and must always be written.
   const xMode = computeXModeEffectiveness(
     record.one_lap_pace,
     ctx.aero_zone_value,
@@ -278,9 +304,14 @@ export async function enrichRecord(recordId: string): Promise<boolean> {
     );
   }
 
-  // Aero effectiveness predictions written for all session types where we
-  // have enough data to distinguish X vs Z Mode advantage.
-  if (xMode !== null && zMode !== null) {
+  // Aero effectiveness prediction is only valid once the admin has confirmed
+  // the circuit's DAB zone boundaries via the staging → promote flow.
+  // round.dab_zones_confirmed is set when the last staging record for the round
+  // is promoted. If false, dab_zone_count in ctx would be 0, silently inflating
+  // z_mode_effectiveness and producing a misleading prediction.
+  // Skipping here is safe: POST /api/analytics/recalculate (force=false) will
+  // pick up all unenriched records after admin promotion and write the prediction.
+  if (xMode !== null && zMode !== null && record.round.dab_zones_confirmed) {
     await writeAeroPrediction({
       carId: record.car_id,
       circuitId: record.circuit_id,
@@ -298,8 +329,10 @@ export async function enrichRecord(recordId: string): Promise<boolean> {
 // Batch enrichment — all unenriched records for a session
 // ---------------------------------------------------------------------------
 
-// Records are considered unenriched when straight_line_efficiency IS NULL
-// (the first analytics-only field). Step 4 processors never populate it.
+// Records are considered unenriched when x_mode_effectiveness IS NULL.
+// x_mode_effectiveness is populated for every record with a non-null one_lap_pace.
+// Step 4 processors never write it. straight_line_efficiency is NOT used as the
+// marker because it is intentionally null on all per-session (non-aggregate) records.
 export async function enrichSessionRecords(
   target: SessionEnrichmentTarget
 ): Promise<AnalyticsResult> {
@@ -334,7 +367,7 @@ export async function enrichSessionRecords(
       session_type: target.sessionType,
       superseded_at: null,
       deleted_at: null,
-      straight_line_efficiency: null, // enrichment marker
+      x_mode_effectiveness: null, // enrichment marker — see file header
     },
     select: { id: true },
   });

@@ -131,6 +131,26 @@ async function loadPacePoints(
 
 // Compute and write the pace trend prediction for a car.
 // No-ops silently if fewer than 2 rounds of data exist.
+//
+// STORAGE NOTE — circuit_id is a storage artifact, not a filter dimension:
+//   The slope computed here is SEASON-WIDE. loadPacePoints queries all of the
+//   car's round_aggregate records with NO circuit_id filter, using z-score
+//   normalisation to make pace values comparable across circuits of varying
+//   difficulty. The slope measures the car's development trajectory over the
+//   season (positive = improving relative to field, negative = declining).
+//
+//   circuit_id is passed as a parameter only because the predictions table
+//   requires a non-nullable circuit_id FK. It is set to the circuit of the
+//   round_aggregate record that triggered this enrichment run.
+//
+//   Consequence: after N rounds, the same slope value is stored as N separate
+//   prediction records (one per circuit visited), each superseding the previous.
+//   This redundancy is intentional — the amendment chain preserves history.
+//
+//   UI INSTRUCTION: read the pace trend from the car's most recent active
+//   prediction WHERE prediction_type = 'track_fit' AND source_type = 'model'
+//   AND editorial_rationale LIKE 'OLS slope%', ordered by round_valid_from DESC.
+//   Do NOT filter by circuit_id when displaying the season-wide trend.
 export async function writePaceTrendPrediction(
   carId: string,
   circuitId: string,

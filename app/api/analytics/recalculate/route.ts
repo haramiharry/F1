@@ -71,14 +71,17 @@ export async function POST(req: NextRequest) {
     ...(sessionType ? { session_type: sessionType as SessionType } : {}),
     superseded_at: null,
     deleted_at: null,
-    // Without force: only unenriched records.
+    // Without force: only unenriched records (x_mode_effectiveness IS NULL).
     // With force: all active records regardless of enrichment state.
-    ...(force ? {} : { straight_line_efficiency: null }),
+    // x_mode_effectiveness is the enrichment marker — populated for every record
+    // with a non-null one_lap_pace; straight_line_efficiency is NOT the marker
+    // because it is intentionally null on all per-session (non-aggregate) records.
+    ...(force ? {} : { x_mode_effectiveness: null }),
   };
 
   const targets = await rawPrisma.carCircuitPerformance.findMany({
     where,
-    select: { id: true, straight_line_efficiency: true },
+    select: { id: true, x_mode_effectiveness: true },
   });
 
   if (targets.length === 0) {
@@ -98,10 +101,10 @@ export async function POST(req: NextRequest) {
     try {
       // For forced re-enrichment, clear the enrichment marker first so
       // enrichRecord doesn't skip the record.
-      if (force && target.straight_line_efficiency !== null) {
+      if (force && target.x_mode_effectiveness !== null) {
         await prisma.carCircuitPerformance.update({
           where: { id: target.id },
-          data: { straight_line_efficiency: null },
+          data: { x_mode_effectiveness: null },
         });
       }
 
