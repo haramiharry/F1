@@ -1,0 +1,117 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* =============================================================================
+   CSS custom properties — design token layer.
+   Dark mode is the primary experience. Light mode is supported and maps
+   all the same tokens to brighter equivalents.
+   The `dark` class is applied to <html> by the ThemeProvider.
+============================================================================= */
+
+:root {
+  /* Default: dark mode */
+  --color-bg:               #0A0A0A;
+  --color-surface:          #141414;
+  --color-surface-elevated: #1E1E1E;
+  --color-border:           #2A2A2A;
+  --color-border-subtle:    #1F1F1F;
+
+  --color-text-primary:   #F5F5F5;
+  --color-text-secondary: #9A9A9A;
+  --color-text-muted:     #666666;
+
+  /* Scrollbar */
+  color-scheme: dark;
+}
+
+/* Light mode overrides */
+:root.light,
+.light {
+  --color-bg:               #FFFFFF;
+  --color-surface:          #F5F5F5;
+  --color-surface-elevated: #EBEBEB;
+  --color-border:           #E0E0E0;
+  --color-border-subtle:    #F0F0F0;
+
+  --color-text-primary:   #0A0A0A;
+  --color-text-secondary: #5A5A5A;
+  --color-text-muted:     #999999;
+
+  color-scheme: light;
+}
+
+/* =============================================================================
+   Base resets
+============================================================================= */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  tab-size: 4;
+}
+
+body {
+  margin: 0;
+  background-color: var(--color-bg);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans, ui-sans-serif, system-ui, sans-serif);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* =============================================================================
+   Utility layer — team color border-left accent stripe used on car cards
+============================================================================= */
+
+@layer utilities {
+  .team-stripe-mercedes    { border-left-color: #00D2BE; }
+  .team-stripe-ferrari     { border-left-color: #E8002D; }
+  .team-stripe-redbull     { border-left-color: #1E3A8A; }
+  .team-stripe-mclaren     { border-left-color: #FF8000; }
+  .team-stripe-astonmartin { border-left-color: #358C75; }
+  .team-stripe-alpine      { border-left-color: #0093CC; }
+  .team-stripe-williams    { border-left-color: #37BEDD; }
+  .team-stripe-haas        { border-left-color: #B6BABD; }
+  .team-stripe-sauber      { border-left-color: #52E252; }
+  .team-stripe-racingbulls { border-left-color: #818CF8; }
+}
+
+/* =============================================================================
+   Recharts overrides — align chart text with our token system
+============================================================================= */
+
+.recharts-text,
+.recharts-cartesian-axis-tick-value {
+  fill: var(--color-text-secondary);
+  font-size: 0.6875rem;
+}
+
+.recharts-cartesian-grid-horizontal line,
+.recharts-cartesian-grid-vertical line {
+  stroke: var(--color-border);
+}
+
+.recharts-tooltip-wrapper .recharts-default-tooltip {
+  background-color: var(--color-surface-elevated) !important;
+  border-color: var(--color-border) !important;
+  border-radius: 0.5rem;
+}
+
+.recharts-tooltip-label {
+  color: var(--color-text-primary) !important;
+  font-weight: 600;
+  font-size: 0.75rem;
+}
+
+.recharts-tooltip-item {
+  color: var(--color-text-secondary) !important;
+  font-size: 0.6875rem !important;
+}
