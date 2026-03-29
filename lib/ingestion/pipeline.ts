@@ -8,9 +8,12 @@
 //   Called by the cron endpoint every 15 minutes.
 //
 // ingestSession              — fetches session results from Formula1.com,
-//   writes to DB via processSessionResults, then triggers:
-//     • processSessionPerformance for fp1/fp2/fp3/qualifying/sprint_qualifying/sprint
-//     • calculateRoundAggregate for race (called inside processSessionResults)
+//   writes to DB via processSessionResults, then:
+//     1. Triggers processSessionPerformance (fp1/fp2/fp3/quali/sprint sessions)
+//        or calculateRoundAggregate (race — called inside processSessionResults)
+//     2. Triggers enrichSessionRecords (Step 5 analytics engine) to enrich
+//        the newly written CarCircuitPerformance records with all five
+//        remaining dimensions and write track_fit + aero_effectiveness predictions.
 //
 // ingestFastestLap           — fetches the DHL Fastest Lap Award page and writes
 //   the result for a specific round via processFastestLap.
@@ -27,6 +30,7 @@ import {
   processSessionPerformance,
   handlesSessionType,
 } from "@/lib/ingestion/processors/session-performance";
+import { enrichSessionRecords } from "@/lib/analytics/engine";
 import type { IngestionResult, IngestableSessionType } from "@/lib/ingestion/types";
 
 const FALLBACK_WINDOW_MINUTES = 90;
@@ -163,9 +167,30 @@ export async function ingestSession({
     }
   }
 
+  // Step 5: enrich the newly written CarCircuitPerformance records with all
+  // five analytics dimensions and write track_fit / aero_effectiveness predictions.
+  // Non-fatal: session results and basic pace metrics are already committed.
+  let analyticsErrors: string[] = [];
+  if (sessionResult.recordsWritten > 0) {
+    // For race sessions the round_aggregate is written inside processSessionResults;
+    // we enrich it here. For other sessions the session-performance record was
+    // written above.
+    const enrichTarget = sessionType === "race" ? "round_aggregate" : sessionType;
+    const analyticsResult = await enrichSessionRecords({
+      season,
+      roundNumber,
+      sessionType: enrichTarget,
+    });
+    if (!analyticsResult.success) {
+      analyticsErrors = analyticsResult.errors.map(
+        (e) => `[analytics] ${e}`
+      );
+    }
+  }
+
   return {
     ...sessionResult,
-    errors: [...sessionResult.errors, ...perfErrors],
+    errors: [...sessionResult.errors, ...perfErrors, ...analyticsErrors],
   };
 }
 
