@@ -1,13 +1,18 @@
 // Ingestion pipeline orchestrator.
 //
-// applyTimeBasedFallback  — promotes a round from upcoming → in_progress when
-//   a session was scheduled > 90 minutes ago with no results yet. Runs before
-//   every scrape attempt so the round status is never permanently stuck.
+// applyTimeBasedFallback     — promotes one round upcoming → in_progress when
+//   a session was scheduled > 90 min ago with no data yet.
+//   Called before every ingestSession scrape attempt.
 //
-// ingestSession           — fetches session results from Formula1.com and
-//   writes them to the DB via processSessionResults.
+// applyTimeBasedFallbackAll  — same logic across all upcoming rounds.
+//   Called by the cron endpoint every 15 minutes.
 //
-// ingestFastestLap        — fetches the DHL Fastest Lap Award page and writes
+// ingestSession              — fetches session results from Formula1.com,
+//   writes to DB via processSessionResults, then triggers:
+//     • processSessionPerformance for fp1/fp2/fp3/qualifying/sprint_qualifying/sprint
+//     • calculateRoundAggregate for race (called inside processSessionResults)
+//
+// ingestFastestLap           — fetches the DHL Fastest Lap Award page and writes
 //   the result for a specific round via processFastestLap.
 
 import { prisma } from "@/lib/db/client";
@@ -18,13 +23,16 @@ import {
 import { fetchFastestLaps } from "@/lib/ingestion/scrapers/f1-fastest-lap";
 import { processSessionResults } from "@/lib/ingestion/processors/session-results";
 import { processFastestLap } from "@/lib/ingestion/processors/fastest-lap";
+import {
+  processSessionPerformance,
+  handlesSessionType,
+} from "@/lib/ingestion/processors/session-performance";
 import type { IngestionResult, IngestableSessionType } from "@/lib/ingestion/types";
 
 const FALLBACK_WINDOW_MINUTES = 90;
 
-// Check if any session for a round was scheduled > 90 minutes ago with no
-// results yet. If so, flip the round status to in_progress with
-// status_source='time_based' so the UI reflects an active weekend.
+// Promote one specific round from upcoming → in_progress if a session was
+// scheduled > 90 minutes ago and no results have been written yet.
 export async function applyTimeBasedFallback(
   roundNumber: number,
   season: number
@@ -47,7 +55,6 @@ export async function applyTimeBasedFallback(
   const pastSession = round.sessions.find((s) => s.scheduled_start <= cutoff);
   if (!pastSession) return;
 
-  // No-op if any results already exist — data path already fired.
   const existingCount = await prisma.sessionResult.count({
     where: { session: { round_id: round.id } },
   });
@@ -59,8 +66,55 @@ export async function applyTimeBasedFallback(
   });
 }
 
+// Scan all upcoming rounds and apply the 90-minute time-based fallback to each.
+// Called by GET /api/ingestion/cron/round-status every 15 minutes.
+// Returns the number of rounds checked and the number that were transitioned.
+export async function applyTimeBasedFallbackAll(): Promise<{
+  checked: number;
+  transitioned: number;
+}> {
+  const cutoff = new Date(Date.now() - FALLBACK_WINDOW_MINUTES * 60_000);
+
+  // Find all upcoming rounds that have at least one non-cancelled session
+  // whose scheduled_start is already past the 90-minute cutoff.
+  const candidates = await prisma.round.findMany({
+    where: {
+      status: "upcoming",
+      sessions: {
+        some: {
+          scheduled_start: { lte: cutoff },
+          session_cancelled: false,
+        },
+      },
+    },
+    select: { id: true },
+  });
+
+  if (candidates.length === 0) return { checked: 0, transitioned: 0 };
+
+  let transitioned = 0;
+
+  for (const round of candidates) {
+    const existingCount = await prisma.sessionResult.count({
+      where: { session: { round_id: round.id } },
+    });
+
+    if (existingCount === 0) {
+      await prisma.round.update({
+        where: { id: round.id },
+        data: { status: "in_progress", status_source: "time_based" },
+      });
+      transitioned++;
+    }
+  }
+
+  return { checked: candidates.length, transitioned };
+}
+
 // Fetch and ingest session results from Formula1.com.
-// Returns a failure result (not a thrown error) if the page is unavailable.
+// After a successful write, automatically computes CarCircuitPerformance metrics:
+//   fp1/fp2/fp3/qualifying/sprint_qualifying/sprint → processSessionPerformance
+//   race → calculateRoundAggregate (called inside processSessionResults)
 export async function ingestSession({
   season,
   roundNumber,
@@ -92,7 +146,27 @@ export async function ingestSession({
     };
   }
 
-  return processSessionResults(scraped);
+  const sessionResult = await processSessionResults(scraped);
+
+  // Compute session-level CarCircuitPerformance after successful writes.
+  // Non-fatal: if performance calculation fails, session results are still
+  // committed and the error is appended to the returned errors list.
+  let perfErrors: string[] = [];
+  if (sessionResult.recordsWritten > 0 && handlesSessionType(sessionType)) {
+    const perfResult = await processSessionPerformance(
+      sessionType,
+      season,
+      roundNumber
+    );
+    if (!perfResult.success) {
+      perfErrors = perfResult.errors.map((e) => `[performance] ${e}`);
+    }
+  }
+
+  return {
+    ...sessionResult,
+    errors: [...sessionResult.errors, ...perfErrors],
+  };
 }
 
 // Fetch and ingest the fastest lap for a specific round.
