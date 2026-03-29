@@ -14,6 +14,8 @@
 //     2. Triggers enrichSessionRecords (Step 5 analytics engine) to enrich
 //        the newly written CarCircuitPerformance records with all five
 //        remaining dimensions and write track_fit + aero_effectiveness predictions.
+//     3. Triggers runPredictionEngineForSession (Step 6) to compute or
+//        recalibrate fastest_lap predictions for all cars at this circuit.
 //
 // ingestFastestLap           — fetches the DHL Fastest Lap Award page and writes
 //   the result for a specific round via processFastestLap.
@@ -31,6 +33,7 @@ import {
   handlesSessionType,
 } from "@/lib/ingestion/processors/session-performance";
 import { enrichSessionRecords } from "@/lib/analytics/engine";
+import { runPredictionEngineForSession } from "@/lib/predictions/engine";
 import type { IngestionResult, IngestableSessionType } from "@/lib/ingestion/types";
 
 const FALLBACK_WINDOW_MINUTES = 90;
@@ -188,9 +191,29 @@ export async function ingestSession({
     }
   }
 
+  // Step 6: compute / recalibrate fastest_lap predictions for all cars at this
+  // circuit after any session write. Non-fatal: analytics and session results
+  // are already committed.
+  let predictionErrors: string[] = [];
+  if (sessionResult.recordsWritten > 0) {
+    const predResult = await runPredictionEngineForSession({
+      season,
+      roundNumber,
+      sessionType,
+    });
+    if (!predResult.success) {
+      predictionErrors = predResult.errors.map((e) => `[predictions] ${e}`);
+    }
+  }
+
   return {
     ...sessionResult,
-    errors: [...sessionResult.errors, ...perfErrors, ...analyticsErrors],
+    errors: [
+      ...sessionResult.errors,
+      ...perfErrors,
+      ...analyticsErrors,
+      ...predictionErrors,
+    ],
   };
 }
 
