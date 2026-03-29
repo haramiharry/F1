@@ -3,3 +3,11 @@ node_modules
 .env
 
 /generated/prisma
+
+# SQLite database files (dev only — never commit)
+dev.db
+dev.db-shm
+dev.db-wal
+**/dev.db
+**/dev.db-shm
+**/dev.db-wal
