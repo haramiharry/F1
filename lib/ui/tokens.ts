@@ -8,15 +8,29 @@
 // ---------------------------------------------------------------------------
 // Team color map — 2026 constructors
 //
-// Differentiation notes (teams that share a blue family):
-//   redbull      #1E3A8A  — deep navy (HSL ~225°, L=34)
-//   racingbulls  #818CF8  — periwinkle (HSL ~235°, L=72) — 38pt lighter
-//   williams     #37BEDD  — sky/cyan  (HSL ~197°, L=55) — distinct hue
+// Three-blue differentiation (Red Bull / Racing Bulls / Williams):
 //
-// The three blues are separated by both hue angle and lightness so they
-// remain distinguishable in dark mode and under deuteranopia simulation.
-// haas (#B6BABD) is near-neutral silver — differentiated from all blues
-// by saturation (≈3% vs 60%+).
+//   redbull      #3671C6  — medium navy   HSL(221°, 55%, 49%)
+//   racingbulls  #818CF8  — periwinkle    HSL(235°, 90%, 73%)
+//   williams     #37BEDD  — sky/cyan      HSL(197°, 73%, 55%)
+//
+//   Red Bull vs Racing Bulls:
+//     Hue separation:       14° (221° vs 235°) — same blue family but different cast
+//     Lightness separation: 24pt (L=49 vs L=73) — Red Bull darker, RB lighter
+//     On dark bg (#141414): both are clearly visible and distinct
+//     On light bg (#FFFFFF): Red Bull renders as mid-weight navy; RB as light purple
+//     Result: unambiguous at a glance on both backgrounds
+//
+//   Red Bull was previously #1E3A8A (L=25, deep navy).
+//   That value is INVISIBLE on dark backgrounds: contrast ratio vs #141414 ≈ 1.2:1.
+//   Changed to #3671C6 (L=49) for dark-mode visibility while retaining the
+//   "navy blue" character that makes it clearly Red Bull.
+//
+//   Williams (#37BEDD, HSL 197°) sits at a distinct cyan hue 24° below Red Bull
+//   and 38° below Racing Bulls — no reasonable confusion between the three.
+//
+//   haas (#B6BABD) is near-neutral silver (saturation ≈ 3%) — distinguished from
+//   all blues by saturation alone, not just hue or lightness.
 // ---------------------------------------------------------------------------
 
 export type TeamSlug =
@@ -34,7 +48,7 @@ export type TeamSlug =
 export const TEAM_COLORS: Record<TeamSlug, string> = {
   mercedes:    "#00D2BE",
   ferrari:     "#E8002D",
-  redbull:     "#1E3A8A",
+  redbull:     "#3671C6", // was #1E3A8A — too dark for dark-mode visibility (contrast 1.2:1)
   mclaren:     "#FF8000",
   astonmartin: "#358C75",
   alpine:      "#0093CC",

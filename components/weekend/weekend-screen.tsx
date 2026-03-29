@@ -17,8 +17,10 @@
 //   │  [Car card list — stacked]          │
 //   │  ┌─ Team stripe (4px border-left) ─┐│
 //   │  │ Car name          Confidence    ││
-//   │  │ One-lap ████████░░  8.4         ││
-//   │  │ Long-run ██████░░░  6.1         ││
+//   │  │ One-lap  ████████░░  8.4                    ││
+//   │  │ Long-run ██████░░░  6.1  (fp2/race only)   ││
+//   │  │ Long-run Not collected this session         ││
+//   │  │          (fp1/fp3/quali/sprint_quali/sprint) ││
 //   │  │ [Source label]                  ││
 //   │  └─────────────────────────────────┘│
 //   ├─────────────────────────────────────┤
@@ -64,7 +66,13 @@ export interface CarSessionMetric {
   teamSlug: TeamSlug;
   designation: string;         // e.g. "W15"
   oneLapPace: number | null;   // 0–10
-  longRunPace: number | null;  // 0–10
+  longRunPace: number | null;  // 0–10; null for fp1/fp3/qualifying/sprint_qualifying/sprint by design
+  // longRunPaceAvailable distinguishes two null states:
+  //   false → not collected for this session type (fp1/fp3/quali/sprint_quali/sprint)
+  //           renders "Not collected this session" dim label — no bar shown
+  //   true  → collected for this session type (fp2, race) but value not yet available
+  //           renders "—" placeholder — a bar will appear once data arrives
+  longRunPaceAvailable: boolean;
   confidence: ConfidenceTier;
   sourceVariant: SourceVariant;
 }
@@ -175,14 +183,28 @@ function CarCard({ metric }: { metric: CarSessionMetric }) {
           </p>
           <PaceBar value={metric.oneLapPace} color={color} />
         </div>
-        {metric.longRunPace !== null && (
-          <div>
-            <p className="text-caption text-text-muted uppercase tracking-wider mb-1">
-              Long-run
-            </p>
+
+        {/* Long-run pace row is always rendered so the user understands why
+            the field is absent, rather than silently disappearing.
+            Two distinct null states — see CarSessionMetric.longRunPaceAvailable */}
+        <div>
+          <p className="text-caption text-text-muted uppercase tracking-wider mb-1">
+            Long-run
+          </p>
+          {!metric.longRunPaceAvailable ? (
+            // Session type does not produce long-run data (fp1/fp3/quali/sprint).
+            // Show a clear label so the user knows this is by design, not missing data.
+            <span className="text-caption text-text-muted italic">
+              Not collected this session
+            </span>
+          ) : metric.longRunPace !== null ? (
+            // Data available.
             <PaceBar value={metric.longRunPace} color={color} />
-          </div>
-        )}
+          ) : (
+            // Session type produces long-run data (fp2/race) but value not yet available.
+            <span className="text-caption text-text-muted">—</span>
+          )}
+        </div>
       </div>
 
       <SourceLabel variant={metric.sourceVariant} size="sm" />

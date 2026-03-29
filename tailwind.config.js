@@ -54,7 +54,7 @@ module.exports = {
         team: {
           mercedes:    "#00D2BE",
           ferrari:     "#E8002D",
-          redbull:     "#1E3A8A",
+          redbull:     "#3671C6", // was #1E3A8A — too dark for dark-mode visibility
           mclaren:     "#FF8000",
           astonmartin: "#358C75",
           alpine:      "#0093CC",

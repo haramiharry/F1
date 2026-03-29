@@ -7,20 +7,33 @@
 //   derived    — computed from official session data
 //   predicted  — model or editorial estimate
 //
-// Differentiation beyond color:
-//   official   → solid border + shield-check icon + uppercase text
-//   derived    → solid border + function (σ) icon + uppercase text
-//   predicted  → DASHED border + sparkles icon + uppercase text
+// Differentiation matrix — three independent signals, all non-color:
 //
-// The dashed border on predicted is the non-color secondary signal: it
-// communicates "not settled" at a glance even in greyscale or for
-// users with colour vision deficiency.
+//   Variant    Border style   Border width   Icon character
+//   ─────────  ────────────   ────────────   ──────────────────────────────
+//   official   SOLID          2px (thick)    ShieldCheck — filled shield,
+//                                            conveys "verified, locked in"
+//   derived    DOTTED         1px            Sigma (σ) — mathematical symbol,
+//                                            conveys "computed from data"
+//   predicted  DASHED         1px            Sparkles — estimative/uncertain,
+//                                            conveys "model output"
+//
+// In greyscale (CVD or print):
+//   official  — recognisable by thick solid border + shield-check shape
+//   derived   — recognisable by dotted border + sigma letter shape
+//   predicted — recognisable by dashed border + sparkle star shape
+//
+// Border styles differ structurally (solid dots are round, dashes are
+// rectangular, solid is continuous) — not just in color or thickness.
+// Icon shapes also differ structurally (shield vs Greek letter vs stars).
+// A user who cannot distinguish green/blue/amber can still identify all
+// three variants from border style alone or icon shape alone.
 //
 // Size variants:
 //   sm  — 11px caption, used inside chart tooltips and table cells
 //   md  — 12px label (default), used on cards
 
-import { CheckCircle2, FunctionSquare, Sparkles } from "lucide-react";
+import { ShieldCheck, Sigma, Sparkles } from "lucide-react";
 import type { SourceVariant } from "@/lib/ui/tokens";
 
 interface SourceLabelProps {
@@ -35,35 +48,41 @@ const CONFIG: Record<
     label: string;
     icon: React.ElementType;
     colorClass: string;
+    // Each variant has a structurally distinct border style — see header comment.
     borderClass: string;
     bgClass: string;
   }
 > = {
   official: {
     label: "Official",
-    icon: CheckCircle2,
+    icon: ShieldCheck,
     colorClass: "text-source-official",
-    borderClass: "border border-source-official/40 border-solid",
-    bgClass: "bg-source-official/10",
+    // Thick solid border: "confirmed, locked"
+    borderClass: "border-2 border-source-official/50",
+    bgClass: "bg-source-official/15",
   },
   derived: {
     label: "Derived",
-    icon: FunctionSquare,
+    icon: Sigma,
     colorClass: "text-source-derived",
-    borderClass: "border border-source-derived/40 border-solid",
+    // Dotted border: "computed, not directly observed"
+    borderClass: "border border-source-derived/50 border-dotted",
     bgClass: "bg-source-derived/10",
   },
   predicted: {
     label: "Predicted",
     icon: Sparkles,
     colorClass: "text-source-predicted",
-    // Dashed border is the secondary non-color signal for predicted state.
+    // Dashed border: "estimated, uncertain"
     borderClass: "border border-source-predicted/50 border-dashed",
-    bgClass: "bg-source-predicted/10",
+    bgClass: "bg-source-predicted/8",
   },
 };
 
-const SIZE: Record<"sm" | "md", { text: string; icon: number; px: string; py: string; gap: string }> = {
+const SIZE: Record<
+  "sm" | "md",
+  { text: string; icon: number; px: string; py: string; gap: string }
+> = {
   sm: { text: "text-caption", icon: 10, px: "px-1.5", py: "py-0.5", gap: "gap-1" },
   md: { text: "text-label",   icon: 11, px: "px-2",   py: "py-1",   gap: "gap-1" },
 };
