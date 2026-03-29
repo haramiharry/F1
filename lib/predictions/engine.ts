@@ -208,36 +208,38 @@ export async function computeFastestLapPrediction(
     documentReference: `fastest_lap for car=${carId} circuit=${circuitId} round=${roundNumber}`,
   });
 
-  // 7. Find existing predictions to supersede inside the transaction.
-  //    — existing: most recent model prediction (will be superseded by new one)
-  //    — editorialBaseline: only superseded on the FIRST model write
-  const existing = await rawPrisma.prediction.findFirst({
-    where: {
-      prediction_type: "fastest_lap",
-      car_id: carId,
-      circuit_id: circuitId,
-      source_type: "model",
-      superseded_at: null,
-    },
-    select: { id: true },
-  });
-
-  // Locate editorial baseline only when this is the first model output.
-  const editorialBaseline =
-    existing === null
-      ? await rawPrisma.prediction.findFirst({
-          where: {
-            prediction_type: "fastest_lap",
-            car_id: carId,
-            circuit_id: circuitId,
-            source_type: "editorial",
-            superseded_at: null,
-          },
-          select: { id: true },
-        })
-      : null;
-
+  // 7. Write prediction and handle amendment chain inside a single transaction.
+  //
+  //    RACE CONDITION GUARD: both the "existing model prediction" check and the
+  //    "editorial baseline" check are performed INSIDE the transaction, not before
+  //    it. If two concurrent requests both reach this point simultaneously, the
+  //    second transaction's reads will observe the first transaction's committed
+  //    writes before deciding what to supersede.
+  //
+  //    Isolation guarantee:
+  //      SQLite (dev) — serializable by default; only one writer at a time.
+  //      PostgreSQL (prod) — interactive transactions run at READ COMMITTED by
+  //      default. With READ COMMITTED, two concurrent transactions could still
+  //      both read existing=null if neither has committed yet. The practical
+  //      risk is low (session ingestion is single-threaded per round), but for
+  //      hard safety in production, add a partial unique index:
+  //        UNIQUE (car_id, circuit_id, prediction_type)
+  //        WHERE superseded_at IS NULL AND source_type = 'model'
+  //      This causes the second transaction to fail with a unique violation
+  //      rather than silently creating a duplicate active prediction.
   await prisma.$transaction(async (tx) => {
+    // Re-read inside the transaction — atomically consistent with the write below.
+    const existingModel = await tx.prediction.findFirst({
+      where: {
+        prediction_type: "fastest_lap",
+        car_id: carId,
+        circuit_id: circuitId,
+        source_type: "model",
+        superseded_at: null,
+      },
+      select: { id: true },
+    });
+
     const newPred = await tx.prediction.create({
       data: {
         prediction_type: "fastest_lap",
@@ -256,27 +258,40 @@ export async function computeFastestLapPrediction(
       select: { id: true },
     });
 
-    if (existing) {
+    if (existingModel) {
+      // Recalibration: supersede previous model prediction.
       await tx.prediction.update({
-        where: { id: existing.id },
+        where: { id: existingModel.id },
         data: {
           superseded_at: new Date(),
           superseded_by_id: newPred.id,
           amendment_reason: "Fastest lap prediction recalibrated with new session data",
         },
       });
-    }
-
-    // First model output supersedes editorial baseline atomically.
-    if (editorialBaseline) {
-      await tx.prediction.update({
-        where: { id: editorialBaseline.id },
-        data: {
-          superseded_at: new Date(),
-          superseded_by_id: newPred.id,
-          amendment_reason: "Superseded by first model output after Round 1",
+    } else {
+      // First model output for this car+circuit: supersede editorial baseline
+      // if one exists. Checked here (not outside) to avoid TOCTOU race.
+      const editorialBaseline = await tx.prediction.findFirst({
+        where: {
+          prediction_type: "fastest_lap",
+          car_id: carId,
+          circuit_id: circuitId,
+          source_type: "editorial",
+          superseded_at: null,
         },
+        select: { id: true },
       });
+
+      if (editorialBaseline) {
+        await tx.prediction.update({
+          where: { id: editorialBaseline.id },
+          data: {
+            superseded_at: new Date(),
+            superseded_by_id: newPred.id,
+            amendment_reason: "Superseded by first model output after Round 1",
+          },
+        });
+      }
     }
   });
 

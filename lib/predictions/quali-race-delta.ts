@@ -31,7 +31,23 @@ import { rawPrisma } from "@/lib/db/client";
 // ---------------------------------------------------------------------------
 
 // Default delta when no observed qualifying+race pair exists.
-// 1.018 = race fastest lap is ~1.8% slower than qualifying pole lap.
+//
+// PROVENANCE — editorial constant:
+//   1.018 is derived from editorial analysis of 2018–2024 F1 dry-weather
+//   race results. The mean ratio of (race fastest lap / qualifying pole lap)
+//   across those seasons was approximately 1.015–1.020 per circuit, with
+//   lower values at street circuits (less tyre degradation, cleaner air in
+//   late-race laps) and higher values at high-deg circuits. 1.018 is the
+//   central estimate across the range.
+//
+//   Source type: editorial — not derived from live 2026 data.
+//   This value is labelled as such on the Methodology page.
+//   It will be superseded circuit-by-circuit once computeQualiRaceDelta
+//   accumulates qualifying + race fastest-lap pairs for 2026.
+//
+//   Do not treat 1.018 as a calibrated model output. It is a reasonable
+//   pre-season prior whose uncertainty is absorbed into the prediction's
+//   margin_of_error_ms (±2000ms at LOW confidence, ±800ms at MEDIUM).
 export const DEFAULT_QUALI_RACE_DELTA = 1.018;
 
 // ---------------------------------------------------------------------------

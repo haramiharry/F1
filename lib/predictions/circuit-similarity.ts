@@ -5,9 +5,9 @@
 //   overtaking_potential, aero_zone_value
 //
 // Distance formula:
-//   d = sqrt( Σ (a_i − b_i)² )   for i in the five dimensions
+//   d = sqrt( Σ w_i × (a_i − b_i)² )   for i in the five dimensions
 //
-// Maximum possible distance in this space:
+// Maximum possible distance in this space (with equal weights = 1.0):
 //   sqrt(5 × 10²) ≈ 22.36
 //
 // Similarity score:
@@ -18,6 +18,26 @@
 // circuit. The top-N most similar circuits are found, and the car's pace at
 // those circuits is used as a weighted proxy for its target-circuit pace.
 // Weight = similarity score (closer circuits contribute more heavily).
+//
+// METHODOLOGY DISCLOSURE — dimension weighting:
+//   DIMENSION_WEIGHTS below are currently set to 1.0 for all five dimensions,
+//   meaning the Euclidean distance treats each profile axis as equally
+//   important to circuit similarity. This is an unvalidated assumption.
+//
+//   The practical consequence for 2026 specifically:
+//     drag_sensitivity and braking_intensity have years of F1 circuit
+//     characterisation behind them and their 0–10 values reflect a mature
+//     calibration. aero_zone_value is a new 2026 dimension (F1 active aero
+//     regulations) with no historical anchor; its 0–10 scale was defined
+//     editorially for this platform. Treating it with equal weight to
+//     drag_sensitivity may over-emphasise an uncalibrated dimension.
+//
+//   Recalibration path: after Round 6+ of 2026 data, compare predicted vs
+//   observed lap times for similarity-inferred circuits and adjust weights.
+//   Until then, equal weighting is disclosed on the Methodology page and the
+//   PREDICTED label on all similarity-inferred estimates acknowledges this
+//   uncertainty. The LOW confidence rating (margin ±2000ms) further signals
+//   that similarity-inferred predictions carry higher uncertainty.
 
 import { prisma } from "@/lib/db/client";
 import type { CircuitSimilarityScore } from "@/lib/predictions/types";
@@ -26,7 +46,20 @@ import type { CircuitSimilarityScore } from "@/lib/predictions/types";
 // Pure computation — no DB access
 // ---------------------------------------------------------------------------
 
-const MAX_DISTANCE = Math.sqrt(5 * 100); // ≈ 22.36
+// Dimension weights — all 1.0 (equal) until post-season calibration.
+// See methodology disclosure in the file header.
+const DIMENSION_WEIGHTS = {
+  drag_sensitivity: 1.0,
+  traction_demand: 1.0,
+  braking_intensity: 1.0,
+  overtaking_potential: 1.0,
+  aero_zone_value: 1.0,
+} as const;
+
+// Max distance recomputed from weights so it stays in sync if weights change.
+const MAX_DISTANCE = Math.sqrt(
+  Object.values(DIMENSION_WEIGHTS).reduce((s, w) => s + w * 100, 0)
+); // ≈ 22.36 with equal weights
 
 interface ProfileDimensions {
   drag_sensitivity: number;
@@ -41,11 +74,11 @@ export function circuitDistance(
   b: ProfileDimensions
 ): number {
   return Math.sqrt(
-    (a.drag_sensitivity - b.drag_sensitivity) ** 2 +
-      (a.traction_demand - b.traction_demand) ** 2 +
-      (a.braking_intensity - b.braking_intensity) ** 2 +
-      (a.overtaking_potential - b.overtaking_potential) ** 2 +
-      (a.aero_zone_value - b.aero_zone_value) ** 2
+    DIMENSION_WEIGHTS.drag_sensitivity * (a.drag_sensitivity - b.drag_sensitivity) ** 2 +
+      DIMENSION_WEIGHTS.traction_demand * (a.traction_demand - b.traction_demand) ** 2 +
+      DIMENSION_WEIGHTS.braking_intensity * (a.braking_intensity - b.braking_intensity) ** 2 +
+      DIMENSION_WEIGHTS.overtaking_potential * (a.overtaking_potential - b.overtaking_potential) ** 2 +
+      DIMENSION_WEIGHTS.aero_zone_value * (a.aero_zone_value - b.aero_zone_value) ** 2
   );
 }
 
