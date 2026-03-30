@@ -15,7 +15,7 @@
 
 import { prisma } from "@/lib/db/client";
 import { rawPrisma } from "@/lib/db/client";
-import type { Prisma } from "@prisma/client";
+import type { TransactionClient } from "@/lib/db/client";
 import { createProvenance } from "@/lib/ingestion/provenance";
 import { sessionTypeThreshold } from "@/lib/ingestion/staleness";
 import type { IngestionResult } from "@/lib/ingestion/types";
@@ -149,7 +149,7 @@ export async function calculateRoundAggregate(
 
     if (existingAggregate) {
       // Amendment: create new → supersede old. Atomic transaction.
-      await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      await prisma.$transaction(async (tx: TransactionClient) => {
         const newRecord = await tx.carCircuitPerformance.create({
           data: {
             car_id: carId,

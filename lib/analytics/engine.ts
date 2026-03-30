@@ -42,7 +42,7 @@
 
 import { prisma } from "@/lib/db/client";
 import { rawPrisma } from "@/lib/db/client";
-import type { Prisma } from "@prisma/client";
+import type { TransactionClient } from "@/lib/db/client";
 import { createProvenance } from "@/lib/ingestion/provenance";
 import { computeConfidence } from "@/lib/analytics/confidence";
 import { computeStraightLineEfficiency } from "@/lib/analytics/metrics/straight-line";
@@ -132,7 +132,7 @@ async function writeAeroPrediction({
     select: { id: true },
   });
 
-  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+  await prisma.$transaction(async (tx: TransactionClient) => {
     const newPred = await tx.prediction.create({
       data: {
         prediction_type: "aero_effectiveness",
@@ -250,7 +250,7 @@ export async function enrichRecord(recordId: string): Promise<boolean> {
   });
 
   // Supersede Step 4 record with fully enriched record.
-  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+  await prisma.$transaction(async (tx: TransactionClient) => {
     const newRecord = await tx.carCircuitPerformance.create({
       data: {
         car_id: record.car_id,

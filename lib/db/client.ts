@@ -117,3 +117,12 @@ if (process.env.NODE_ENV !== "production") {
   globalForPrisma.prisma = prisma;
   globalForPrisma.rawPrisma = rawPrisma;
 }
+
+/**
+ * Type for the transaction client passed to prisma.$transaction callbacks.
+ * Derived from the prisma instance so it works regardless of whether
+ * prisma generate has run (avoids the unstable Prisma namespace export).
+ */
+export type TransactionClient = Parameters<
+  Parameters<typeof prisma.$transaction>[0]
+>[0];
