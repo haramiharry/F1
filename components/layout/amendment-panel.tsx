@@ -2,60 +2,103 @@
 
 // AmendmentPanel — slide-in panel showing the amendment chain for any entity.
 //
-// Activated by the URL param:  ?amendmentHistory=entityType:entityId
-//   e.g. ?amendmentHistory=fastest_laps:cld_abc123
-//        ?amendmentHistory=predictions:cld_xyz789
-//        ?amendmentHistory=car_circuit_performance:cld_def456
+// Activated by: ?amendmentHistory=entityType:entityId
+//   e.g. ?amendmentHistory=predictions:cld_abc123
+//        ?amendmentHistory=circuit_dab_zones:cld_xyz789
 //
-// Supported entity types (matches @@map names in schema.prisma):
-//   fastest_laps, predictions, car_circuit_performance, circuit_dab_zones
+// Supported entity types (@@map names in schema.prisma):
+//   fastest_laps | predictions | car_circuit_performance | circuit_dab_zones
 //
-// Dismiss: clicking the overlay or the × button removes the param via
-// router.push (preserving all other params).
+// Data: fetches /api/amendments?entityType=X&entityId=Y when param is present.
+// Loading state: skeleton rows.
+// Error state: inline error message.
+// Empty state: "No amendment history found."
 //
-// Step 8: renders with placeholder amendment data. Step 9 will wire the
-// real API call to /api/amendments/[entityType]/[entityId].
+// Dismiss: backdrop click or × button removes the param via router.push.
 
+import { useState, useEffect } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
-import { X, GitCommit, Clock } from "lucide-react";
+import { X, GitCommit, Clock, AlertCircle } from "lucide-react";
 import { SourceLabel } from "@/components/ui/source-label";
+import type { AmendmentsApiResponse, AmendmentEntry } from "@/lib/api/types";
 
 const ENTITY_LABELS: Record<string, string> = {
-  fastest_laps:             "Fastest Lap",
-  predictions:              "Prediction",
-  car_circuit_performance:  "Car Circuit Performance",
-  circuit_dab_zones:        "DAB Zone",
+  fastest_laps:            "Fastest Lap",
+  predictions:             "Prediction",
+  car_circuit_performance: "Car Performance",
+  circuit_dab_zones:       "DAB Zone",
 };
 
-// Placeholder amendment record shape (matches the superseded_at chain pattern).
-interface AmendmentRecord {
-  id: string;
-  createdAt: string;
-  amendmentReason: string | null;
-  sourceType: "official" | "derived" | "predicted";
-  isCurrent: boolean;
-  summary: string;
+function AmendmentSkeleton() {
+  return (
+    <div className="space-y-3 animate-pulse">
+      {Array.from({ length: 3 }).map((_, i) => (
+        <div key={i} className="rounded-card border border-border p-3 space-y-2">
+          <div className="flex justify-between">
+            <div className="h-3 w-8 bg-surface-elevated rounded" />
+            <div className="h-3 w-16 bg-surface-elevated rounded" />
+          </div>
+          <div className="h-4 w-48 bg-surface-elevated rounded" />
+          <div className="h-3 w-24 bg-surface-elevated rounded" />
+        </div>
+      ))}
+    </div>
+  );
 }
 
-// Placeholder data — replaced by real API in Step 9.
-const PLACEHOLDER_CHAIN: AmendmentRecord[] = [
-  {
-    id: "cld_current_001",
-    createdAt: "2026-03-16T14:22:00Z",
-    amendmentReason: "Post-race penalty applied — lap time revised",
-    sourceType: "official",
-    isCurrent: true,
-    summary: "1:22.091 — VER — Round 1 Australia",
-  },
-  {
-    id: "cld_superseded_001",
-    createdAt: "2026-03-16T12:05:00Z",
-    amendmentReason: null,
-    sourceType: "official",
-    isCurrent: false,
-    summary: "1:21.889 — VER — Round 1 Australia (superseded)",
-  },
-];
+function AmendmentCard({ record, index }: { record: AmendmentEntry; index: number }) {
+  const sourceVariant =
+    record.sourceType === "official" || record.sourceType === "derived" || record.sourceType === "predicted"
+      ? (record.sourceType as "official" | "derived" | "predicted")
+      : "derived";
+
+  return (
+    <div
+      className={[
+        "rounded-card border p-3",
+        record.isCurrent
+          ? "bg-surface-elevated border-border"
+          : "bg-surface border-border opacity-60",
+      ].join(" ")}
+    >
+      <div className="flex items-start justify-between gap-2 mb-2">
+        <span className="text-caption text-text-muted font-mono">#{index + 1}</span>
+        {record.isCurrent ? (
+          <span className="text-caption text-confidence-high border border-confidence-high/30 rounded-badge px-1.5 py-0.5 uppercase">
+            Current
+          </span>
+        ) : (
+          <span className="text-caption text-text-muted border border-border rounded-badge px-1.5 py-0.5 uppercase">
+            Superseded
+          </span>
+        )}
+      </div>
+
+      <p className="text-data-small text-text-primary mb-2">{record.summary}</p>
+
+      <div className="flex items-center gap-1.5 flex-wrap mb-2">
+        <SourceLabel variant={sourceVariant} size="sm" />
+      </div>
+
+      <div className="flex items-center gap-1 text-caption text-text-muted">
+        <Clock size={10} aria-hidden />
+        {new Date(record.createdAt).toLocaleString("en-GB", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        })}
+      </div>
+
+      {record.amendmentReason && (
+        <p className="text-caption text-text-secondary mt-1.5 border-t border-border pt-1.5">
+          {record.amendmentReason}
+        </p>
+      )}
+    </div>
+  );
+}
 
 export function AmendmentPanel() {
   const searchParams = useSearchParams();
@@ -63,12 +106,41 @@ export function AmendmentPanel() {
   const router = useRouter();
 
   const param = searchParams.get("amendmentHistory");
-  if (!param) return null;
 
-  const [entityType, entityId] = param.split(":");
-  if (!entityType || !entityId) return null;
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [amendments, setAmendments] = useState<AmendmentEntry[]>([]);
+  const [lastParam, setLastParam] = useState<string | null>(null);
 
-  const label = ENTITY_LABELS[entityType] ?? entityType;
+  // Parse entity type and ID from param.
+  const parsed = param ? param.split(":") : null;
+  const entityType = parsed?.[0] ?? null;
+  const entityId = parsed?.[1] ?? null;
+  const label = entityType ? (ENTITY_LABELS[entityType] ?? entityType) : null;
+
+  // Fetch when the param changes.
+  useEffect(() => {
+    if (!param || !entityType || !entityId) return;
+    if (param === lastParam) return; // already fetched for this param
+
+    setLoading(true);
+    setError(null);
+    setLastParam(param);
+
+    fetch(`/api/amendments?entityType=${encodeURIComponent(entityType)}&entityId=${encodeURIComponent(entityId)}`)
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const json: AmendmentsApiResponse = await res.json();
+        setAmendments(json.amendments);
+      })
+      .catch((e) => {
+        setError(e instanceof Error ? e.message : "Unknown error");
+      })
+      .finally(() => setLoading(false));
+  }, [param, entityType, entityId, lastParam]);
+
+  // Not shown when param is absent.
+  if (!param || !entityType || !entityId || !label) return null;
 
   function dismiss() {
     const params = new URLSearchParams(searchParams.toString());
@@ -120,60 +192,31 @@ export function AmendmentPanel() {
             Most recent first. The current active record is highlighted.
           </p>
 
-          {PLACEHOLDER_CHAIN.map((record, idx) => (
-            <div
-              key={record.id}
-              className={[
-                "rounded-card border p-3",
-                record.isCurrent
-                  ? "bg-surface-elevated border-border"
-                  : "bg-surface border-border opacity-60",
-              ].join(" ")}
-            >
-              <div className="flex items-start justify-between gap-2 mb-2">
-                <span className="text-caption text-text-muted font-mono">
-                  #{idx + 1}
-                </span>
-                {record.isCurrent ? (
-                  <span className="text-caption text-confidence-high border border-confidence-high/30 rounded-badge px-1.5 py-0.5 uppercase">
-                    Current
-                  </span>
-                ) : (
-                  <span className="text-caption text-text-muted border border-border rounded-badge px-1.5 py-0.5 uppercase">
-                    Superseded
-                  </span>
-                )}
-              </div>
+          {loading && <AmendmentSkeleton />}
 
-              <p className="text-data-small text-text-primary mb-2">
-                {record.summary}
+          {error && (
+            <div className="flex items-start gap-2 rounded-badge border border-confidence-low/30 p-3">
+              <AlertCircle size={14} className="text-confidence-low shrink-0 mt-0.5" aria-hidden />
+              <p className="text-caption text-text-secondary">
+                Failed to load amendment history: {error}
               </p>
-
-              <div className="flex items-center gap-1.5 flex-wrap mb-2">
-                <SourceLabel variant={record.sourceType} size="sm" />
-              </div>
-
-              <div className="flex items-center gap-1 text-caption text-text-muted">
-                <Clock size={10} aria-hidden />
-                {new Date(record.createdAt).toLocaleString("en-GB", {
-                  day: "2-digit",
-                  month: "short",
-                  year: "numeric",
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
-              </div>
-
-              {record.amendmentReason && (
-                <p className="text-caption text-text-secondary mt-1.5 border-t border-border pt-1.5">
-                  {record.amendmentReason}
-                </p>
-              )}
             </div>
-          ))}
+          )}
+
+          {!loading && !error && amendments.length === 0 && (
+            <p className="text-caption text-text-muted text-center py-4">
+              No amendment history found for this record.
+            </p>
+          )}
+
+          {!loading &&
+            !error &&
+            amendments.map((record, idx) => (
+              <AmendmentCard key={record.id} record={record} index={idx} />
+            ))}
         </div>
 
-        {/* Footer note */}
+        {/* Footer */}
         <div className="px-4 py-3 border-t border-border shrink-0">
           <p className="text-caption text-text-muted">
             Amendment chains are permanent. Superseded records are retained

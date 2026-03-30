@@ -24,7 +24,12 @@ export const metadata: Metadata = { title: "Cars" };
 export default function CarsPage({
   searchParams,
 }: {
-  searchParams: { compare?: string; highlight?: string; liveData?: string };
+  searchParams: {
+    compare?: string;
+    highlight?: string;
+    liveData?: string;
+    asOfRound?: string;
+  };
 }) {
   const compareSlugs = searchParams.compare
     ? searchParams.compare.split(",").filter(Boolean)
@@ -33,6 +38,7 @@ export default function CarsPage({
     ? searchParams.highlight.split(",").filter(Boolean)
     : [];
   const liveData = searchParams.liveData === "true";
+  const asOfRound = searchParams.asOfRound ?? null;
 
   return (
     <Suspense fallback={<div className="px-4 py-8 text-text-muted text-data-small">Loading…</div>}>
@@ -40,6 +46,7 @@ export default function CarsPage({
         compareSlugs={compareSlugs}
         highlightSlugs={highlightSlugs}
         liveData={liveData}
+        asOfRound={asOfRound}
       />
     </Suspense>
   );

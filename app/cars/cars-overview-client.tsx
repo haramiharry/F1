@@ -1,51 +1,36 @@
 "use client";
 
-// CarsOverviewClient — client component for Cars Overview.
-// Separated from the server page so useRouter/useSearchParams work correctly.
+// CarsOverviewClient — fetches /api/cars and renders the comparison grid.
+//
+// URL params:
+//   ?compare=[s1,s2]   — side-by-side comparison panel (max 2)
+//   ?highlight=[...]   — highlight these cars in the grid
+//   ?liveData=true     — shows live badge on active cars
+//   ?asOfRound=N       — cap data to rounds ≤ N (passed to API)
+//
+// Loading state: skeleton cards during initial fetch.
+// Error state:   error card with retry button.
+// Zero state:    all cars have null pace → "No performance data yet" notice.
+// Stale state:   cars with isStale=true show a StaleTag under their bar.
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
-import { GitCompare, Zap, X } from "lucide-react";
+import { GitCompare, Zap, X, AlertCircle, RefreshCw } from "lucide-react";
 import { CompareLimitBlock } from "@/components/layout/compare-limit-block";
 import { ConfidenceBadge } from "@/components/ui/confidence-badge";
 import { SourceLabel } from "@/components/ui/source-label";
 import { TEAM_COLORS, TEAM_NAMES } from "@/lib/ui/tokens";
 import type { TeamSlug } from "@/lib/ui/tokens";
+import type { CarsApiResponse, CarPerfRow } from "@/lib/api/types";
 
 // ---------------------------------------------------------------------------
-// Placeholder data
-// ---------------------------------------------------------------------------
-
-interface CarRow {
-  teamSlug: TeamSlug;
-  designation: string;
-  gearboxType: string;
-  weightKg: number | null;
-  suspensionConcept: string | null;
-  oneLapPace: number | null;
-  longRunPace: number | null;
-  trackFitScore: number | null;
-}
-
-const ALL_CARS: CarRow[] = [
-  { teamSlug: "ferrari",     designation: "SF-26",    gearboxType: "longitudinal", weightKg: 798, suspensionConcept: "Pull-rod front, push-rod rear", oneLapPace: null, longRunPace: null, trackFitScore: null },
-  { teamSlug: "mclaren",     designation: "MCL39",    gearboxType: "transverse",   weightKg: 800, suspensionConcept: "Push-rod front and rear",       oneLapPace: null, longRunPace: null, trackFitScore: null },
-  { teamSlug: "redbull",     designation: "RB21",     gearboxType: "longitudinal", weightKg: null, suspensionConcept: null,                           oneLapPace: null, longRunPace: null, trackFitScore: null },
-  { teamSlug: "mercedes",    designation: "W16",      gearboxType: "longitudinal", weightKg: null, suspensionConcept: "Zero-pod concept",             oneLapPace: null, longRunPace: null, trackFitScore: null },
-  { teamSlug: "astonmartin", designation: "AMR26",    gearboxType: "longitudinal", weightKg: null, suspensionConcept: null,                           oneLapPace: null, longRunPace: null, trackFitScore: null },
-  { teamSlug: "alpine",      designation: "A526",     gearboxType: "transverse",   weightKg: null, suspensionConcept: null,                           oneLapPace: null, longRunPace: null, trackFitScore: null },
-  { teamSlug: "williams",    designation: "FW47",     gearboxType: "longitudinal", weightKg: null, suspensionConcept: null,                           oneLapPace: null, longRunPace: null, trackFitScore: null },
-  { teamSlug: "racingbulls", designation: "VCARB 02", gearboxType: "longitudinal", weightKg: null, suspensionConcept: null,                           oneLapPace: null, longRunPace: null, trackFitScore: null },
-  { teamSlug: "haas",        designation: "VF-26",    gearboxType: "longitudinal", weightKg: null, suspensionConcept: null,                           oneLapPace: null, longRunPace: null, trackFitScore: null },
-  { teamSlug: "sauber",      designation: "C45",      gearboxType: "longitudinal", weightKg: null, suspensionConcept: null,                           oneLapPace: null, longRunPace: null, trackFitScore: null },
-];
-
-// ---------------------------------------------------------------------------
-// Metric display helpers
+// Helpers
 // ---------------------------------------------------------------------------
 
 function MetricBar({ value, color }: { value: number | null; color: string }) {
-  if (value === null) return <span className="text-caption text-text-muted italic">No data</span>;
+  if (value === null)
+    return <span className="text-caption text-text-muted italic">No data</span>;
   return (
     <div className="flex items-center gap-2">
       <div className="flex-1 h-1.5 rounded-full bg-surface overflow-hidden">
@@ -54,74 +39,143 @@ function MetricBar({ value, color }: { value: number | null; color: string }) {
           style={{ width: `${(value / 10) * 100}%`, backgroundColor: color }}
         />
       </div>
-      <span className="text-caption text-text-secondary font-mono w-6 text-right">{value.toFixed(1)}</span>
+      <span className="text-caption text-text-secondary font-mono w-6 text-right">
+        {value.toFixed(1)}
+      </span>
     </div>
   );
 }
 
 function SpecValue({ value }: { value: string | number | null }) {
   if (value === null)
-    return (
-      <span className="text-caption text-text-muted italic flex items-center gap-1">
-        Not confirmed
-      </span>
-    );
+    return <span className="text-caption text-text-muted italic">Not confirmed</span>;
   return <span className="text-caption text-text-secondary">{value}</span>;
 }
 
+function StaleTag() {
+  return (
+    <span className="inline-flex items-center gap-0.5 text-caption text-confidence-low mt-0.5">
+      <AlertCircle size={9} aria-hidden />
+      Source stale
+    </span>
+  );
+}
+
 // ---------------------------------------------------------------------------
-// Comparison columns (max 2)
+// Comparison panel (max 2 cars)
 // ---------------------------------------------------------------------------
 
-function ComparePanel({ slugs, allCars }: { slugs: TeamSlug[]; allCars: CarRow[] }) {
-  const cars = slugs.map((s) => allCars.find((c) => c.teamSlug === s)).filter(Boolean) as CarRow[];
+function ComparePanel({ slugs, allCars }: { slugs: TeamSlug[]; allCars: CarPerfRow[] }) {
+  const cars = slugs
+    .map((s) => allCars.find((c) => c.teamSlug === s))
+    .filter(Boolean) as CarPerfRow[];
   if (cars.length === 0) return null;
 
-  const ROWS: { label: string; key: keyof CarRow; render?: (v: CarRow[keyof CarRow], car: CarRow) => React.ReactNode }[] = [
-    { label: "Designation",         key: "designation" },
-    { label: "Gearbox",             key: "gearboxType" },
-    { label: "Weight (kg)",         key: "weightKg" },
-    { label: "Suspension",          key: "suspensionConcept" },
-    { label: "One-lap pace",        key: "oneLapPace",    render: (v, car) => <MetricBar value={v as number | null} color={TEAM_COLORS[car.teamSlug]} /> },
-    { label: "Long-run pace",       key: "longRunPace",   render: (v, car) => <MetricBar value={v as number | null} color={TEAM_COLORS[car.teamSlug]} /> },
-    { label: "Track fit score",     key: "trackFitScore", render: (v, car) => <MetricBar value={v as number | null} color={TEAM_COLORS[car.teamSlug]} /> },
+  const ROWS: {
+    label: string;
+    key: keyof CarPerfRow;
+    render?: (v: CarPerfRow[keyof CarPerfRow], car: CarPerfRow) => React.ReactNode;
+  }[] = [
+    { label: "Designation",     key: "designation" },
+    { label: "One-lap pace",    key: "oneLapPace",           render: (v, car) => <MetricBar value={v as number | null} color={TEAM_COLORS[car.teamSlug as TeamSlug]} /> },
+    { label: "Long-run pace",   key: "longRunPace",          render: (v, car) => <MetricBar value={v as number | null} color={TEAM_COLORS[car.teamSlug as TeamSlug]} /> },
+    { label: "Straight-line",   key: "straightLinePace",     render: (v, car) => <MetricBar value={v as number | null} color={TEAM_COLORS[car.teamSlug as TeamSlug]} /> },
+    { label: "Cornering",       key: "corneringPerformance", render: (v, car) => <MetricBar value={v as number | null} color={TEAM_COLORS[car.teamSlug as TeamSlug]} /> },
+    { label: "Tyre efficiency", key: "tyreBehaviour",        render: (v, car) => <MetricBar value={v as number | null} color={TEAM_COLORS[car.teamSlug as TeamSlug]} /> },
   ];
+
+  const hasAnyData = cars.some((c) => c.hasData);
+  const dataRound = cars.find((c) => c.dataRoundNumber !== null)?.dataRoundNumber;
 
   return (
     <div className="rounded-card bg-surface border border-border overflow-hidden mb-6">
-      <div className={`grid`} style={{ gridTemplateColumns: `160px repeat(${cars.length}, 1fr)` }}>
+      <div style={{ display: "grid", gridTemplateColumns: `160px repeat(${cars.length}, 1fr)` }}>
         {/* Header row */}
-        <div className="bg-surface-elevated border-b border-r border-border px-3 py-2" />
+        <div className="bg-surface-elevated border-b border-r border-border px-3 py-2">
+          {dataRound !== undefined && dataRound !== null && (
+            <span className="text-caption text-text-muted">R{dataRound} data</span>
+          )}
+        </div>
         {cars.map((car) => (
           <div
             key={car.teamSlug}
             className="bg-surface-elevated border-b border-r last:border-r-0 border-border px-3 py-2 border-t-4"
-            style={{ borderTopColor: TEAM_COLORS[car.teamSlug] }}
+            style={{ borderTopColor: TEAM_COLORS[car.teamSlug as TeamSlug] }}
           >
             <p className="text-data-small font-semibold text-text-primary">
-              {TEAM_NAMES[car.teamSlug]}
+              {TEAM_NAMES[car.teamSlug as TeamSlug] ?? car.teamName}
             </p>
             <p className="text-caption text-text-muted">{car.designation}</p>
+            {car.isStale && <StaleTag />}
           </div>
         ))}
 
         {/* Data rows */}
         {ROWS.map(({ label, key, render }) => (
           <>
-            <div key={`label-${key}`} className="border-b last:border-b-0 border-r border-border px-3 py-2 bg-surface">
+            <div
+              key={`label-${key}`}
+              className="border-b last:border-b-0 border-r border-border px-3 py-2 bg-surface"
+            >
               <span className="text-caption text-text-muted">{label}</span>
             </div>
             {cars.map((car) => (
-              <div key={`${car.teamSlug}-${key}`} className="border-b last:border-b-0 border-r last:border-r-0 border-border px-3 py-2">
-                {render ? render(car[key], car) : <SpecValue value={car[key] as string | number | null} />}
+              <div
+                key={`${car.teamSlug}-${key}`}
+                className="border-b last:border-b-0 border-r last:border-r-0 border-border px-3 py-2"
+              >
+                {render
+                  ? render(car[key], car)
+                  : <SpecValue value={car[key] as string | number | null} />}
               </div>
             ))}
           </>
         ))}
       </div>
+
       <div className="px-4 py-2 border-t border-border flex items-center justify-between">
-        <SourceLabel variant="official" size="sm" />
-        <ConfidenceBadge tier="low" size="sm" />
+        <SourceLabel variant={hasAnyData ? "derived" : "predicted"} size="sm" />
+        <ConfidenceBadge tier={hasAnyData ? "medium" : "low"} size="sm" />
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Loading / Error skeletons
+// ---------------------------------------------------------------------------
+
+function LoadingSkeleton() {
+  return (
+    <div className="max-w-screen-lg mx-auto px-4 py-6">
+      <div className="h-8 w-32 bg-surface-elevated rounded-badge animate-pulse mb-6" />
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+        {Array.from({ length: 10 }).map((_, i) => (
+          <div key={i} className="rounded-card bg-surface-elevated border border-border h-28 animate-pulse" />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ErrorCard({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return (
+    <div className="max-w-screen-lg mx-auto px-4 py-6">
+      <div className="rounded-card bg-surface border border-confidence-low/30 p-5 flex items-start gap-3">
+        <AlertCircle size={16} className="text-confidence-low shrink-0 mt-0.5" aria-hidden />
+        <div>
+          <p className="text-data-small text-text-primary font-medium mb-1">
+            Failed to load car data
+          </p>
+          <p className="text-caption text-text-muted mb-3">{message}</p>
+          <button
+            onClick={onRetry}
+            className="inline-flex items-center gap-1.5 text-caption text-text-secondary border border-border rounded-badge px-2 py-1 hover:border-text-secondary transition-colors"
+          >
+            <RefreshCw size={11} aria-hidden />
+            Retry
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -135,32 +189,64 @@ interface Props {
   compareSlugs: string[];
   highlightSlugs: string[];
   liveData: boolean;
+  asOfRound: string | null;
 }
 
-export function CarsOverviewClient({ compareSlugs, highlightSlugs, liveData }: Props) {
+export function CarsOverviewClient({
+  compareSlugs,
+  highlightSlugs,
+  liveData,
+  asOfRound,
+}: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+
+  const [data, setData] = useState<CarsApiResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  async function fetchCars() {
+    setLoading(true);
+    setError(null);
+    try {
+      const qs = asOfRound ? `?asOfRound=${asOfRound}` : "";
+      const res = await fetch(`/api/cars${qs}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json: CarsApiResponse = await res.json();
+      setData(json);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unknown error");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    fetchCars();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [asOfRound]);
 
   const isOverLimit = compareSlugs.length > 2;
   const activeCompare = compareSlugs.slice(0, 2) as TeamSlug[];
 
   function toggleCompare(slug: TeamSlug) {
     const params = new URLSearchParams(searchParams.toString());
-    const current = compareSlugs.filter((s): s is TeamSlug => s in TEAM_NAMES);
-    let next: TeamSlug[];
-    if (current.includes(slug)) {
-      next = current.filter((s) => s !== slug);
-    } else {
-      next = [...current, slug];
-    }
-    if (next.length === 0) {
-      params.delete("compare");
-    } else {
-      params.set("compare", next.join(","));
-    }
+    const current = compareSlugs.filter((s) => s in TEAM_NAMES) as TeamSlug[];
+    const next = current.includes(slug)
+      ? current.filter((s) => s !== slug)
+      : [...current, slug];
+    if (next.length === 0) params.delete("compare");
+    else params.set("compare", next.join(","));
     router.push(`${pathname}?${params.toString()}`);
   }
+
+  if (loading) return <LoadingSkeleton />;
+  if (error) return <ErrorCard message={error} onRetry={fetchCars} />;
+  if (!data) return null;
+
+  const allCars = data.cars;
+  const allHaveNoData = allCars.every((c) => !c.hasData);
 
   return (
     <div className="max-w-screen-lg mx-auto px-4 py-6">
@@ -169,10 +255,13 @@ export function CarsOverviewClient({ compareSlugs, highlightSlugs, liveData }: P
         <div>
           <h1 className="text-data-large font-bold text-text-primary">Cars</h1>
           <p className="text-data-small text-text-secondary mt-0.5">
-            2026 constructors · {liveData && (
+            {liveData ? (
               <span className="text-f1 font-medium">Live data active</span>
+            ) : data.asOfRound !== null ? (
+              <span>Data through Round {data.asOfRound}</span>
+            ) : (
+              "Select two cars to compare"
             )}
-            {!liveData && "Select two cars to compare"}
           </p>
         </div>
         {activeCompare.length > 0 && (
@@ -199,22 +288,24 @@ export function CarsOverviewClient({ compareSlugs, highlightSlugs, liveData }: P
 
       {/* Comparison panel */}
       {!isOverLimit && activeCompare.length >= 1 && (
-        <ComparePanel slugs={activeCompare} allCars={ALL_CARS} />
+        <ComparePanel slugs={activeCompare} allCars={allCars} />
       )}
 
       {/* Car grid */}
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-        {ALL_CARS.map((car) => {
+        {allCars.map((car) => {
           const isComparing = compareSlugs.includes(car.teamSlug);
           const isHighlighted = highlightSlugs.includes(car.teamSlug);
-          const color = TEAM_COLORS[car.teamSlug];
+          const color = TEAM_COLORS[car.teamSlug as TeamSlug];
 
           return (
             <div
               key={car.teamSlug}
               className={[
                 "rounded-card border border-l-4 transition-all",
-                isHighlighted ? "border-text-secondary bg-surface-elevated" : "border-border bg-surface-elevated",
+                isHighlighted
+                  ? "border-text-secondary bg-surface-elevated"
+                  : "border-border bg-surface-elevated",
                 isComparing ? "ring-1 ring-f1/50" : "",
               ].join(" ")}
               style={{ borderLeftColor: color }}
@@ -223,12 +314,12 @@ export function CarsOverviewClient({ compareSlugs, highlightSlugs, liveData }: P
                 <div className="flex items-start justify-between gap-3 mb-3">
                   <Link href={`/cars/${car.teamSlug}`} className="min-w-0 group">
                     <p className="text-data-medium font-semibold text-text-primary group-hover:text-f1 transition-colors">
-                      {TEAM_NAMES[car.teamSlug]}
+                      {TEAM_NAMES[car.teamSlug as TeamSlug] ?? car.teamName}
                     </p>
                     <p className="text-caption text-text-muted">{car.designation}</p>
                   </Link>
                   <button
-                    onClick={() => toggleCompare(car.teamSlug)}
+                    onClick={() => toggleCompare(car.teamSlug as TeamSlug)}
                     className={[
                       "shrink-0 flex items-center gap-1 text-caption border rounded-badge px-2 py-1 transition-colors",
                       isComparing
@@ -253,10 +344,13 @@ export function CarsOverviewClient({ compareSlugs, highlightSlugs, liveData }: P
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 mt-3 pt-3 border-t border-border">
-                  <SourceLabel variant="official" size="sm" />
-                  <ConfidenceBadge tier="low" size="sm" />
-                  {liveData && <Zap size={11} className="text-f1 ml-auto" aria-hidden />}
+                <div className="flex items-center gap-2 mt-3 pt-3 border-t border-border flex-wrap">
+                  <SourceLabel variant={car.hasData ? "derived" : "predicted"} size="sm" />
+                  <ConfidenceBadge tier={car.hasData ? "medium" : "low"} size="sm" />
+                  {car.isStale && <StaleTag />}
+                  {liveData && car.hasData && (
+                    <Zap size={11} className="text-f1 ml-auto" aria-hidden />
+                  )}
                 </div>
               </div>
             </div>
@@ -264,8 +358,8 @@ export function CarsOverviewClient({ compareSlugs, highlightSlugs, liveData }: P
         })}
       </div>
 
-      {/* Zero state notice */}
-      {ALL_CARS.every((c) => c.oneLapPace === null) && (
+      {/* Zero state */}
+      {allHaveNoData && (
         <p className="text-center text-caption text-text-muted mt-6">
           Performance metrics will populate after Round 1 completes.
           Specifications shown are pre-season confirmed data only.
