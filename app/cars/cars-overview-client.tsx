@@ -16,7 +16,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
-import { GitCompare, Zap, X, AlertCircle, RefreshCw } from "lucide-react";
+import { GitCompare, Zap, X, AlertCircle, RefreshCw, GitCommit } from "lucide-react";
 import { CompareLimitBlock } from "@/components/layout/compare-limit-block";
 import { ConfidenceBadge } from "@/components/ui/confidence-badge";
 import { SourceLabel } from "@/components/ui/source-label";
@@ -57,6 +57,15 @@ function StaleTag() {
     <span className="inline-flex items-center gap-0.5 text-caption text-confidence-low mt-0.5">
       <AlertCircle size={9} aria-hidden />
       Source stale
+    </span>
+  );
+}
+
+function RevisedTag() {
+  return (
+    <span className="inline-flex items-center gap-0.5 text-caption text-text-secondary border border-border rounded-badge px-1.5 py-0.5">
+      <GitCommit size={9} aria-hidden />
+      Revised
     </span>
   );
 }
@@ -348,6 +357,7 @@ export function CarsOverviewClient({
                   <SourceLabel variant={car.hasData ? "derived" : "predicted"} size="sm" />
                   <ConfidenceBadge tier={car.hasData ? "medium" : "low"} size="sm" />
                   {car.isStale && <StaleTag />}
+                  {car.amendmentReason !== null && <RevisedTag />}
                   {liveData && data.roundIsLive && car.hasData && (
                     <Zap size={11} className="text-f1 ml-auto" aria-hidden />
                   )}

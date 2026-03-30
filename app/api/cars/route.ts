@@ -65,6 +65,7 @@ export async function GET(request: Request): Promise<NextResponse> {
             z_mode_effectiveness: true,
             depends_on_dab_zones: true,
             recalculation_required: true,
+            amendment_reason: true,
             provenance: { select: { is_stale: true } },
           },
         })
@@ -100,6 +101,7 @@ export async function GET(request: Request): Promise<NextResponse> {
         dataRoundNumber: latestActiveRound?.round_number ?? null,
         dependsOnDabZones: ccp?.depends_on_dab_zones ?? false,
         recalculationRequired: ccp?.recalculation_required ?? false,
+        amendmentReason: ccp?.amendment_reason ?? null,
       };
     }),
   };

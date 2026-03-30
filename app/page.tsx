@@ -14,7 +14,7 @@
 
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Calendar, Trophy, Zap, ChevronRight, Clock, AlertCircle } from "lucide-react";
+import { Calendar, Trophy, Zap, ChevronRight, Clock, AlertCircle, GitCommit } from "lucide-react";
 import { ConfidenceBadge } from "@/components/ui/confidence-badge";
 import { TEAM_COLORS, TEAM_NAMES } from "@/lib/ui/tokens";
 import type { TeamSlug } from "@/lib/ui/tokens";
@@ -33,6 +33,15 @@ function StaleTag() {
     <span className="inline-flex items-center gap-0.5 text-caption text-confidence-low">
       <AlertCircle size={9} aria-hidden />
       Stale
+    </span>
+  );
+}
+
+function RevisedTag() {
+  return (
+    <span className="inline-flex items-center gap-0.5 text-caption text-text-secondary border border-border rounded-badge px-1.5 py-0.5">
+      <GitCommit size={9} aria-hidden />
+      Revised
     </span>
   );
 }
@@ -122,6 +131,7 @@ function CarGrid({
     hasData: boolean;
     oneLapPace: number | null;
     isStale: boolean;
+    isRevised: boolean;
   }[];
 }) {
   return (
@@ -164,6 +174,7 @@ function CarGrid({
                   />
                 </div>
                 {car.isStale && <StaleTag />}
+                {car.isRevised && <RevisedTag />}
               </>
             ) : (
               <p className="text-caption text-text-muted italic">No data yet</p>
@@ -256,6 +267,7 @@ export default async function DashboardPage() {
         select: {
           car_id: true,
           one_lap_pace: true,
+          amendment_reason: true,
           provenance: { select: { is_stale: true } },
         },
       })
@@ -271,6 +283,7 @@ export default async function DashboardPage() {
       hasData: ccp !== null,
       oneLapPace: ccp?.one_lap_pace ?? null,
       isStale: ccp?.provenance?.is_stale ?? false,
+      isRevised: ccp?.amendment_reason !== null && ccp?.amendment_reason !== undefined,
     };
   });
 

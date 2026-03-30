@@ -22,6 +22,7 @@ export interface CarPerfRow {
   dataRoundNumber: number | null;
   dependsOnDabZones: boolean;
   recalculationRequired: boolean;
+  amendmentReason: string | null;
 }
 
 export interface CarsApiResponse {

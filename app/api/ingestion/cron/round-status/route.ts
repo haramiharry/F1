@@ -36,7 +36,20 @@
 import { NextResponse } from "next/server";
 import { applyTimeBasedFallbackAll } from "@/lib/ingestion/pipeline";
 
-export async function GET() {
+export async function GET(request: Request) {
+  // Authorization guard — required in production to prevent unauthenticated
+  // invocation by arbitrary callers. Set CRON_SECRET in the environment.
+  // On Vercel, the platform injects x-vercel-cron-signature automatically and
+  // this Bearer check is an additional layer for external schedulers.
+  // Skipped when CRON_SECRET is unset (development).
+  const cronSecret = process.env.CRON_SECRET;
+  if (cronSecret) {
+    const authHeader = request.headers.get("Authorization");
+    if (authHeader !== `Bearer ${cronSecret}`) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+  }
+
   const start = Date.now();
 
   const { checked, transitioned } = await applyTimeBasedFallbackAll();
