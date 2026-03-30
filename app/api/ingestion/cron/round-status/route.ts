@@ -5,26 +5,21 @@
 // upcoming → in_progress even when no ingestion trigger has fired.
 //
 // ---------------------------------------------------------------------------
-// Vercel cron configuration (add to vercel.json at project root):
+// Scheduler configuration:
 //
-//   {
-//     "crons": [
-//       {
-//         "path": "/api/ingestion/cron/round-status",
-//         "schedule": "*/15 * * * 4,5,6,0"
-//       }
-//     ]
-//   }
+//   See .github/workflows/round-status-cron.yml
 //
-// Schedule explanation:
-//   */15 * * * 4,5,6,0  — every 15 minutes on Thursday (4), Friday (5), Saturday (6), Sunday (0)
-//   Covers the full race weekend: FP1 (Thu), FP2/FP3 (Fri), Qualifying (Sat), Race (Sun).
+//   A GitHub Actions workflow calls this endpoint every 15 minutes on
+//   Thursday (4), Friday (5), Saturday (6), and Sunday (0) UTC. It passes
+//   Authorization: Bearer <CRON_SECRET> on every request.
 //
-// For non-Vercel deployments (Railway, Fly.io, external cron):
-//   Call GET /api/ingestion/cron/round-status on whatever scheduler is available.
-//   No request body or auth header is required in development.
-//   Add an Authorization header check (e.g. Bearer token from env) before
-//   deploying to production to prevent unauthenticated invocation.
+//   The Vercel Hobby plan does not support sub-daily cron schedules, so
+//   Vercel crons are not used for this endpoint.
+//
+// Authorization:
+//   CRON_SECRET must be set as a GitHub Actions secret (and as a Vercel
+//   environment variable so this handler can verify it). When CRON_SECRET
+//   is unset the auth check is skipped — development only.
 //
 // Response 200:
 //   { checked: number, transitioned: number, elapsedMs: number }
