@@ -26,7 +26,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { rawPrisma } from "@/lib/db/client";
 import { prisma } from "@/lib/db/client";
 import { enrichRecord } from "@/lib/analytics/engine";
-import type { SessionType } from "@prisma/client";
+import type { SessionType } from "@/lib/db/types";
 
 const VALID_SESSION_TYPES = new Set<string>([
   "fp1", "fp2", "fp3", "qualifying", "sprint_qualifying",

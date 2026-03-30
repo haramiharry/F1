@@ -48,7 +48,7 @@ import {
 } from "@/lib/predictions/fastest-lap";
 import { computeQualiRaceDelta } from "@/lib/predictions/quali-race-delta";
 import type { FastestLapEstimateInput, PredictionEngineResult } from "@/lib/predictions/types";
-import type { SessionType } from "@prisma/client";
+import type { SessionType } from "@/lib/db/types";
 import type { TransactionClient } from "@/lib/db/client";
 
 // ---------------------------------------------------------------------------

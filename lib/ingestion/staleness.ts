@@ -1,4 +1,4 @@
-import type { SessionType } from "@prisma/client";
+import type { SessionType } from "@/lib/db/types";
 
 // Stale thresholds per session type in hours.
 // Per spec: race 24h, qualifying 12h, practice 6h, sprint 12h.

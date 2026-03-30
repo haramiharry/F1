@@ -16,7 +16,7 @@ import type {
   ScrapedDriverResult,
   IngestableSessionType,
 } from "@/lib/ingestion/types";
-import type { TyreCompound } from "@prisma/client";
+import type { TyreCompound } from "@/lib/db/types";
 
 const RATE_LIMIT_MS = 2_000;
 let lastRequestAt = 0;

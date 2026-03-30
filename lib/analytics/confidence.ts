@@ -10,7 +10,7 @@
 // records from previous analytics runs don't inflate the count.
 
 import { rawPrisma } from "@/lib/db/client";
-import type { ConfidenceLevel } from "@prisma/client";
+import type { ConfidenceLevel } from "@/lib/db/types";
 
 export function dataPointsToConfidence(dataPoints: number): ConfidenceLevel {
   if (dataPoints >= 3) return "high";

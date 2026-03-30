@@ -26,7 +26,7 @@
 //   MEDIUM → ±800ms  (1–2 rounds, or circuit-similarity inference)
 //   LOW    → ±2000ms (pre-season or no comparable data)
 
-import type { ConfidenceLevel } from "@prisma/client";
+import type { ConfidenceLevel } from "@/lib/db/types";
 
 // ---------------------------------------------------------------------------
 // Constants

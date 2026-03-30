@@ -1,6 +1,6 @@
 import { createHash } from "crypto";
 import { prisma } from "@/lib/db/client";
-import type { SourceType } from "@prisma/client";
+import type { SourceType } from "@/lib/db/types";
 
 export function hashContent(content: string): string {
   return createHash("md5").update(content, "utf8").digest("hex");

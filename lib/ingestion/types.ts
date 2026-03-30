@@ -1,4 +1,4 @@
-import type { SessionType, TyreCompound } from "@prisma/client";
+import type { SessionType, TyreCompound } from "@/lib/db/types";
 
 // Sessions that can be scraped from Formula1.com.
 // round_aggregate is DB-only (derived after race ingestion, never scraped).

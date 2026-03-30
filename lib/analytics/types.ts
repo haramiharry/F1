@@ -1,4 +1,4 @@
-import type { ConfidenceLevel, SessionType } from "@prisma/client";
+import type { ConfidenceLevel, SessionType } from "@/lib/db/types";
 
 // ---------------------------------------------------------------------------
 // Context fed into the analytics engine for one computation run.
