@@ -48,7 +48,7 @@ import {
 } from "@/lib/predictions/fastest-lap";
 import { computeQualiRaceDelta } from "@/lib/predictions/quali-race-delta";
 import type { FastestLapEstimateInput, PredictionEngineResult } from "@/lib/predictions/types";
-import type { SessionType } from "@prisma/client";
+import { Prisma, type SessionType } from "@prisma/client";
 
 // ---------------------------------------------------------------------------
 // Core prediction — one car at one circuit
@@ -227,7 +227,7 @@ export async function computeFastestLapPrediction(
   //        WHERE superseded_at IS NULL AND source_type = 'model'
   //      This causes the second transaction to fail with a unique violation
   //      rather than silently creating a duplicate active prediction.
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     // Re-read inside the transaction — atomically consistent with the write below.
     const existingModel = await tx.prediction.findFirst({
       where: {

@@ -21,6 +21,7 @@
 
 import { prisma } from "@/lib/db/client";
 import { rawPrisma } from "@/lib/db/client";
+import { Prisma } from "@prisma/client";
 import { createProvenance } from "@/lib/ingestion/provenance";
 import { computeConfidence } from "@/lib/analytics/confidence";
 import type { DimensionScores, CircuitAnalyticsContext } from "@/lib/analytics/types";
@@ -121,7 +122,7 @@ export async function writeTrackFitPrediction({
     select: { id: true },
   });
 
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     const newPrediction = await tx.prediction.create({
       data: {
         prediction_type: "track_fit",

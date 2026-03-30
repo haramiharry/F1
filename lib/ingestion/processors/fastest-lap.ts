@@ -10,6 +10,7 @@
 
 import { prisma } from "@/lib/db/client";
 import { rawPrisma } from "@/lib/db/client";
+import { Prisma } from "@prisma/client";
 import { createProvenance } from "@/lib/ingestion/provenance";
 import { sessionTypeThreshold } from "@/lib/ingestion/staleness";
 import type { ScrapedFastestLap, IngestionResult } from "@/lib/ingestion/types";
@@ -97,7 +98,7 @@ export async function processFastestLap(
   // Amendment: create new record first to obtain its id, then supersede old.
   // Both operations are atomic — a partial amendment would leave the chain
   // inconsistent, so we wrap in a transaction.
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     const newRecord = await tx.fastestLap.create({
       data: {
         round_id: session.round.id,

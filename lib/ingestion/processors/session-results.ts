@@ -14,6 +14,7 @@
 // separately in pipeline.ts::applyTimeBasedFallback.
 
 import { prisma } from "@/lib/db/client";
+import { Prisma } from "@prisma/client";
 import { createProvenance } from "@/lib/ingestion/provenance";
 import { sessionTypeThreshold } from "@/lib/ingestion/staleness";
 import { calculateRoundAggregate } from "@/lib/ingestion/processors/round-aggregate";
@@ -76,7 +77,7 @@ export async function processSessionResults(
   }
 
   // Upsert all results in a single transaction.
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     for (const result of scraped.results) {
       const driverId = driverMap.get(result.driverAbbreviation);
       if (!driverId) continue;

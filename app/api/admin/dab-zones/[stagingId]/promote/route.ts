@@ -25,6 +25,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { rawPrisma } from "@/lib/db/client";
+import { Prisma } from "@prisma/client";
 import { createProvenance } from "@/lib/ingestion/provenance";
 import { FIA_DOCUMENT_STALE_HOURS } from "@/lib/ingestion/staleness";
 
@@ -88,7 +89,7 @@ export async function POST(
 
   const now = new Date();
 
-  await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     // Create the new live record.
     const newLive = await tx.circuitDabZone.create({
       data: {
