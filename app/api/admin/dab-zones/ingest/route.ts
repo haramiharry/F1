@@ -102,7 +102,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Insert all zones into staging in a single transaction.
-  const created = await prisma.$transaction(
+  const created: { id: string; zone_number: number }[] = await prisma.$transaction(
     (data.zones as DabZoneInput[]).map((zone) =>
       prisma.circuitDabZoneStaging.create({
         data: {
