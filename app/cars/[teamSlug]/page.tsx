@@ -47,12 +47,10 @@ function SpecRow({
   label,
   value,
   confirmed,
-  amendmentEntityId,
 }: {
   label: string;
   value: string | number | null;
   confirmed: boolean;
-  amendmentEntityId?: string;
 }) {
   return (
     <div className="flex items-start justify-between gap-4 py-2.5 border-b border-border last:border-0">
@@ -62,15 +60,6 @@ function SpecRow({
           <>
             <span className="text-data-small text-text-primary text-right">{value}</span>
             <SourceLabel variant="official" size="sm" />
-            {amendmentEntityId && (
-              <Link
-                href={`?amendmentHistory=cars:${amendmentEntityId}`}
-                className="text-text-muted hover:text-text-secondary transition-colors"
-                aria-label="View amendment history"
-              >
-                <GitCommit size={11} />
-              </Link>
-            )}
           </>
         ) : (
           <span className="text-caption text-text-muted italic">
@@ -149,6 +138,17 @@ export default async function CarDetailPage({
   }
 
   // -------------------------------------------------------------------------
+  // Active round check (for live badge)
+  // -------------------------------------------------------------------------
+  const activeRound = liveData
+    ? await prisma.round.findFirst({
+        where: { season: 2026, status: "in_progress" },
+        select: { id: true },
+      })
+    : null;
+  const roundIsLive = activeRound !== null;
+
+  // -------------------------------------------------------------------------
   // Predictions from DB
   // -------------------------------------------------------------------------
   const predictions = await prisma.prediction.findMany({
@@ -208,7 +208,7 @@ export default async function CarDetailPage({
             </p>
           </div>
           <div className="flex flex-col items-end gap-2">
-            {liveData && (
+            {liveData && roundIsLive && (
               <span className="flex items-center gap-1 text-caption text-f1 border border-f1/30 rounded-badge px-2 py-0.5">
                 <Zap size={10} aria-hidden />
                 Live

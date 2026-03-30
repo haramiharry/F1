@@ -37,7 +37,7 @@ export async function GET(request: Request): Promise<NextResponse> {
     select: { id: true, round_number: true },
   });
 
-  const [cars, ccpRecords] = await Promise.all([
+  const [cars, ccpRecords, activeRound] = await Promise.all([
     prisma.car.findMany({
       where: { season: SEASON },
       select: {
@@ -69,6 +69,10 @@ export async function GET(request: Request): Promise<NextResponse> {
           },
         })
       : Promise.resolve([]),
+    prisma.round.findFirst({
+      where: { season: SEASON, status: "in_progress" },
+      select: { id: true },
+    }),
   ]);
 
   const ccpByCar = new Map(ccpRecords.map((r) => [r.car_id, r]));
@@ -76,6 +80,7 @@ export async function GET(request: Request): Promise<NextResponse> {
   const result: CarsApiResponse = {
     season: SEASON,
     asOfRound: latestActiveRound?.round_number ?? null,
+    roundIsLive: activeRound !== null,
     cars: cars.map((car) => {
       const ccp = ccpByCar.get(car.id) ?? null;
       return {

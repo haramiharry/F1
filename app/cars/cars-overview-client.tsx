@@ -255,7 +255,7 @@ export function CarsOverviewClient({
         <div>
           <h1 className="text-data-large font-bold text-text-primary">Cars</h1>
           <p className="text-data-small text-text-secondary mt-0.5">
-            {liveData ? (
+            {liveData && data.roundIsLive ? (
               <span className="text-f1 font-medium">Live data active</span>
             ) : data.asOfRound !== null ? (
               <span>Data through Round {data.asOfRound}</span>
@@ -348,7 +348,7 @@ export function CarsOverviewClient({
                   <SourceLabel variant={car.hasData ? "derived" : "predicted"} size="sm" />
                   <ConfidenceBadge tier={car.hasData ? "medium" : "low"} size="sm" />
                   {car.isStale && <StaleTag />}
-                  {liveData && car.hasData && (
+                  {liveData && data.roundIsLive && car.hasData && (
                     <Zap size={11} className="text-f1 ml-auto" aria-hidden />
                   )}
                 </div>

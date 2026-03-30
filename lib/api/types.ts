@@ -28,6 +28,7 @@ export interface CarsApiResponse {
   cars: CarPerfRow[];
   asOfRound: number | null;
   season: number;
+  roundIsLive: boolean;
 }
 
 // ---------------------------------------------------------------------------
