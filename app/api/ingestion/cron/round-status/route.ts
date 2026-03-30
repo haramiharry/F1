@@ -11,14 +11,14 @@
 //     "crons": [
 //       {
 //         "path": "/api/ingestion/cron/round-status",
-//         "schedule": "*/15 * * * 5,6,0"
+//         "schedule": "*/15 * * * 4,5,6,0"
 //       }
 //     ]
 //   }
 //
 // Schedule explanation:
-//   */15 * * * 5,6,0  — every 15 minutes on Friday (5), Saturday (6), Sunday (0)
-//   Race weekends run Thu–Sun UTC. Adjust to 4,5,6,0 if Thursday FP1 is needed.
+//   */15 * * * 4,5,6,0  — every 15 minutes on Thursday (4), Friday (5), Saturday (6), Sunday (0)
+//   Covers the full race weekend: FP1 (Thu), FP2/FP3 (Fri), Qualifying (Sat), Race (Sun).
 //
 // For non-Vercel deployments (Railway, Fly.io, external cron):
 //   Call GET /api/ingestion/cron/round-status on whatever scheduler is available.
