@@ -48,7 +48,7 @@ import {
 } from "@/lib/predictions/fastest-lap";
 import { computeQualiRaceDelta } from "@/lib/predictions/quali-race-delta";
 import type { FastestLapEstimateInput, PredictionEngineResult } from "@/lib/predictions/types";
-import { Prisma, type SessionType } from "@prisma/client";
+import type { Prisma, SessionType } from "@prisma/client";
 
 // ---------------------------------------------------------------------------
 // Core prediction — one car at one circuit

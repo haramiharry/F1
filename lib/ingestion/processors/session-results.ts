@@ -14,7 +14,7 @@
 // separately in pipeline.ts::applyTimeBasedFallback.
 
 import { prisma } from "@/lib/db/client";
-import { Prisma } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 import { createProvenance } from "@/lib/ingestion/provenance";
 import { sessionTypeThreshold } from "@/lib/ingestion/staleness";
 import { calculateRoundAggregate } from "@/lib/ingestion/processors/round-aggregate";

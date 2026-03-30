@@ -21,7 +21,7 @@
 
 import { prisma } from "@/lib/db/client";
 import { rawPrisma } from "@/lib/db/client";
-import { Prisma } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 import { createProvenance } from "@/lib/ingestion/provenance";
 import { computeConfidence } from "@/lib/analytics/confidence";
 import type { DimensionScores, CircuitAnalyticsContext } from "@/lib/analytics/types";

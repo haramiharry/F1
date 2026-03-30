@@ -25,7 +25,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/client";
 import { rawPrisma } from "@/lib/db/client";
-import { Prisma } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 import { createProvenance } from "@/lib/ingestion/provenance";
 import { FIA_DOCUMENT_STALE_HOURS } from "@/lib/ingestion/staleness";
 
