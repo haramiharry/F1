@@ -5,9 +5,12 @@
 //                                  no-op when round is completed
 //   ?amendmentHistory=type:id    — opens AmendmentPanel (handled globally in layout)
 //
-// Zero state (pre-Round 1): shows all confirmed spec data, full spec table
-// with unavailable fields clearly marked. Performance sections show
-// "No session data yet — populates after Round 1."
+// Predictions section:
+//   Queries the DB directly (server component) for all active fastest_lap
+//   predictions for this car. Three render states:
+//     1. predictions.length === 0            → zero state (no records at all)
+//     2. preSeasonOnly === true              → editorial baselines + disclaimer banner
+//     3. preSeasonOnly === false             → model predictions, no banner
 //
 // Spec table rows that are not publicly confirmed render with SourceLabel
 // variant="official" only when confirmed; unavailable fields render
@@ -16,11 +19,12 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ChevronLeft, ExternalLink, GitCommit, Zap } from "lucide-react";
+import { ChevronLeft, ExternalLink, GitCommit, Zap, Info } from "lucide-react";
 import { SourceLabel } from "@/components/ui/source-label";
 import { ConfidenceBadge } from "@/components/ui/confidence-badge";
 import { TEAM_COLORS, TEAM_NAMES } from "@/lib/ui/tokens";
 import type { TeamSlug } from "@/lib/ui/tokens";
+import { prisma } from "@/lib/db/client";
 
 // ---------------------------------------------------------------------------
 // Placeholder data — keyed by teamSlug
@@ -107,7 +111,7 @@ function SpecRow({
 // Page
 // ---------------------------------------------------------------------------
 
-export default function CarDetailPage({
+export default async function CarDetailPage({
   params,
   searchParams,
 }: {
@@ -120,6 +124,43 @@ export default function CarDetailPage({
   const liveData = searchParams.liveData === "true";
   const color = TEAM_COLORS[spec.teamSlug];
   const teamName = TEAM_NAMES[spec.teamSlug];
+
+  // ---------------------------------------------------------------------------
+  // Predictions — DB lookup. Non-fatal: car may not be seeded yet.
+  // ---------------------------------------------------------------------------
+  const car = await prisma.car.findFirst({
+    where: { team: { slug: params.teamSlug }, season: 2026 },
+    select: { id: true },
+  });
+
+  const predictions = car
+    ? await prisma.prediction.findMany({
+        where: {
+          car_id: car.id,
+          superseded_at: null,
+          prediction_type: "fastest_lap",
+        },
+        select: {
+          id: true,
+          predicted_value_display: true,
+          margin_of_error_ms: true,
+          confidence: true,
+          source_type: true,
+          round_valid_from: true,
+          circuit: {
+            select: { name: true, slug: true, country: true },
+          },
+        },
+        orderBy: { circuit: { name: "asc" } },
+      })
+    : [];
+
+  // Mirrors the same logic as /api/predictions/[carId]/[circuitId].
+  // preSeasonOnly = true when all active records are source_type='editorial'.
+  // An empty array is also pre-season-only by definition.
+  const preSeasonOnly =
+    predictions.length === 0 ||
+    predictions.every((p) => p.source_type === "editorial");
 
   return (
     <div className="max-w-screen-lg mx-auto px-4 py-6">
@@ -232,7 +273,7 @@ export default function CarDetailPage({
         </div>
       </section>
 
-      {/* Fastest lap predictions — zero state */}
+      {/* Fastest Lap Predictions */}
       <section className="rounded-card bg-surface border border-border p-4">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-data-small font-semibold text-text-primary">
@@ -240,15 +281,90 @@ export default function CarDetailPage({
           </h2>
           <SourceLabel variant="predicted" size="sm" />
         </div>
-        <p className="text-caption text-text-muted py-4 text-center">
-          Circuit-by-circuit predictions will appear here after the
-          prediction engine has run for the first time.
-        </p>
-        <p className="text-caption text-text-muted text-center">
-          <Link href="/methodology" className="underline hover:text-text-secondary transition-colors">
-            How predictions are calculated
-          </Link>
-        </p>
+
+        {predictions.length === 0 ? (
+          // True zero state — no records of any kind in the DB
+          <>
+            <p className="text-caption text-text-muted py-4 text-center">
+              Circuit-by-circuit predictions will appear here after the
+              prediction engine has run for the first time.
+            </p>
+            <p className="text-caption text-text-muted text-center">
+              <Link
+                href="/methodology"
+                className="underline hover:text-text-secondary transition-colors"
+              >
+                How predictions are calculated
+              </Link>
+            </p>
+          </>
+        ) : (
+          <>
+            {/* Pre-season disclaimer — shown only when every record is editorial */}
+            {preSeasonOnly && (
+              <div className="flex items-start gap-2.5 rounded-badge border border-dashed border-source-predicted/40 bg-source-predicted/5 p-3 mb-4">
+                <Info
+                  size={14}
+                  className="text-source-predicted shrink-0 mt-0.5"
+                  aria-hidden
+                />
+                <div>
+                  <p className="text-caption font-medium text-source-predicted">
+                    Pre-season editorial estimates
+                  </p>
+                  <p className="text-caption text-text-muted mt-0.5">
+                    These are manually authored baselines, not model-generated
+                    predictions. They carry low confidence and a ±2.0 s margin of
+                    error. They will be superseded by model predictions after
+                    Round 1 session data is ingested.{" "}
+                    <Link
+                      href="/methodology"
+                      className="underline hover:text-text-secondary transition-colors"
+                    >
+                      Methodology
+                    </Link>
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Prediction rows — one per circuit */}
+            <div className="space-y-px">
+              {predictions.map((pred) => (
+                <div
+                  key={pred.id}
+                  className="flex items-center gap-3 py-2.5 border-b border-border last:border-0"
+                >
+                  <div className="flex-1 min-w-0">
+                    <span className="text-data-small text-text-primary block truncate">
+                      {pred.circuit.name}
+                    </span>
+                    <span className="text-caption text-text-muted">
+                      {pred.circuit.country}
+                    </span>
+                  </div>
+                  <span className="font-mono text-data-small text-text-primary tabular-nums shrink-0">
+                    {pred.predicted_value_display ?? "—"}
+                  </span>
+                  <ConfidenceBadge
+                    tier={pred.confidence as "low" | "medium" | "high"}
+                    size="sm"
+                  />
+                  <SourceLabel variant="predicted" size="sm" />
+                </div>
+              ))}
+            </div>
+
+            <p className="mt-3 text-caption text-text-muted text-right">
+              <Link
+                href="/methodology"
+                className="underline hover:text-text-secondary transition-colors"
+              >
+                How predictions are calculated
+              </Link>
+            </p>
+          </>
+        )}
       </section>
     </div>
   );

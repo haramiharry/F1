@@ -1,10 +1,11 @@
-// Live Weekend — uses the WeekendScreen component with placeholder data.
+// Live Weekend — renders the WeekendScreen when a round is active.
 //
-// Zero state (no active round): shows next scheduled round with countdown
-// and "sessions will populate here" message.
+// Zero state (no active round): shows WeekendZeroState in both dev and
+// production. There is no dev-mode placeholder — fabricated lap time
+// numbers must never appear in any environment without DB provenance.
 //
-// Active round: passes real-shaped placeholder data into WeekendScreen.
-// Step 9 replaces placeholder with live API calls.
+// Active round: passes real-shaped data from the DB into WeekendScreen.
+// Step 9 replaces ACTIVE_ROUND with a live DB query.
 //
 // ?liveData=true is honoured: when present AND the active round is in_progress,
 // indicates fresh data should be shown without stale indicators.
@@ -14,60 +15,16 @@
 import type { Metadata } from "next";
 import { Radio, Clock } from "lucide-react";
 import { WeekendScreen } from "@/components/weekend/weekend-screen";
-import type {
-  WeekendScreenProps,
-  SessionTabKey,
-} from "@/components/weekend/weekend-screen";
-import type { TeamSlug } from "@/lib/ui/tokens";
-import type { CarLapEntry } from "@/components/charts/lap-time-distribution";
-import type { AeroEntry } from "@/components/charts/aero-mode-advantage";
+import type { WeekendScreenProps } from "@/components/weekend/weekend-screen";
 
 export const metadata: Metadata = { title: "Weekend" };
 
 // ---------------------------------------------------------------------------
-// Placeholder state — swap for DB query in Step 9
+// Active round — swap for DB query in Step 9
 // ---------------------------------------------------------------------------
 
-// Set to null to show the zero state (no active round).
+// null = no active round → WeekendZeroState renders in both dev and production.
 const ACTIVE_ROUND: WeekendScreenProps | null = null;
-
-// Alternatively, here is a fully-populated placeholder for development preview:
-const PLACEHOLDER_WEEKEND: WeekendScreenProps = {
-  roundNumber:    1,
-  roundName:      "Australian Grand Prix",
-  circuitName:    "Albert Park",
-  circuitCountry: "Australia",
-  season:         2026,
-  roundStatus:    "upcoming",
-
-  availableSessions: ["fp1", "fp2", "fp3", "qualifying", "race"] as SessionTabKey[],
-
-  sessionMetrics: {
-    fp1: [
-      { carId: "car_ferrari",  teamSlug: "ferrari" as TeamSlug,  designation: "SF-26",    oneLapPace: null, longRunPace: null, longRunPaceAvailable: false, confidence: "low", sourceVariant: "official" },
-      { carId: "car_mclaren",  teamSlug: "mclaren" as TeamSlug,  designation: "MCL39",    oneLapPace: null, longRunPace: null, longRunPaceAvailable: false, confidence: "low", sourceVariant: "official" },
-      { carId: "car_redbull",  teamSlug: "redbull" as TeamSlug,  designation: "RB21",     oneLapPace: null, longRunPace: null, longRunPaceAvailable: false, confidence: "low", sourceVariant: "official" },
-      { carId: "car_mercedes", teamSlug: "mercedes" as TeamSlug, designation: "W16",      oneLapPace: null, longRunPace: null, longRunPaceAvailable: false, confidence: "low", sourceVariant: "official" },
-    ],
-    fp2: [], fp3: [], qualifying: [], sprint: [], race: [],
-  },
-
-  lapEntries: {
-    fp1: [] as CarLapEntry[],
-    fp2: [], fp3: [], qualifying: [], sprint: [], race: [],
-  },
-
-  aeroEntries: [] as AeroEntry[],
-  dabZonesConfirmed: false,
-
-  fastestLapPredictions: [
-    { carId: "car_ferrari",  teamSlug: "ferrari" as TeamSlug,  label: "Ferrari SF-26",    predictedMs: 82400, marginOfErrorMs: 2000, confidence: "low" },
-    { carId: "car_mclaren",  teamSlug: "mclaren" as TeamSlug,  label: "McLaren MCL39",    predictedMs: 82650, marginOfErrorMs: 2000, confidence: "low" },
-    { carId: "car_redbull",  teamSlug: "redbull" as TeamSlug,  label: "Red Bull RB21",    predictedMs: 82500, marginOfErrorMs: 2000, confidence: "low" },
-    { carId: "car_mercedes", teamSlug: "mercedes" as TeamSlug, label: "Mercedes W16",     predictedMs: 82800, marginOfErrorMs: 2000, confidence: "low" },
-  ],
-  preSeasonOnly: true,
-};
 
 // ---------------------------------------------------------------------------
 // Zero state component
@@ -107,19 +64,16 @@ export default function WeekendPage({
 }) {
   const liveData = searchParams.liveData === "true";
 
-  // Use the placeholder for development preview; production uses ACTIVE_ROUND
-  const roundData = ACTIVE_ROUND ?? (process.env.NODE_ENV === "development" ? PLACEHOLDER_WEEKEND : null);
-
-  if (!roundData) return <WeekendZeroState />;
+  if (!ACTIVE_ROUND) return <WeekendZeroState />;
 
   // When liveData=true and round is completed, treat as no-op per spec.
-  const effectiveLiveData = liveData && roundData.roundStatus !== "completed";
+  const effectiveLiveData = liveData && ACTIVE_ROUND.roundStatus !== "completed";
 
   return (
     <WeekendScreen
-      {...roundData}
+      {...ACTIVE_ROUND}
       // Step 9 will override roundStatus based on live DB round.status
-      roundStatus={effectiveLiveData ? "in_progress" : roundData.roundStatus}
+      roundStatus={effectiveLiveData ? "in_progress" : ACTIVE_ROUND.roundStatus}
     />
   );
 }
