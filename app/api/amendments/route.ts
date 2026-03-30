@@ -76,7 +76,16 @@ export async function GET(request: Request): Promise<NextResponse> {
       },
       orderBy: { created_at: "desc" },
     });
-    amendments = records.map((r) => ({
+    amendments = (records as Array<{
+      id: string;
+      predicted_value_display: string | null;
+      confidence: string;
+      source_type: string;
+      round_valid_from: number;
+      amendment_reason: string | null;
+      superseded_at: Date | null;
+      created_at: Date;
+    }>).map((r) => ({
       id: r.id,
       createdAt: r.created_at.toISOString(),
       amendmentReason: r.amendment_reason,
@@ -118,7 +127,15 @@ export async function GET(request: Request): Promise<NextResponse> {
       },
       orderBy: { calculated_at: "desc" },
     });
-    amendments = records.map((r) => ({
+    amendments = (records as Array<{
+      id: string;
+      one_lap_pace: number | null;
+      session_type: string;
+      amendment_reason: string | null;
+      superseded_at: Date | null;
+      calculated_at: Date;
+      round: { round_number: number; name: string } | null;
+    }>).map((r) => ({
       id: r.id,
       createdAt: r.calculated_at.toISOString(),
       amendmentReason: r.amendment_reason,
@@ -158,7 +175,14 @@ export async function GET(request: Request): Promise<NextResponse> {
       },
       orderBy: { created_at: "desc" },
     });
-    amendments = records.map((r) => ({
+    amendments = (records as Array<{
+      id: string;
+      lap_time_display: string;
+      amendment_reason: string | null;
+      superseded_at: Date | null;
+      created_at: Date;
+      driver: { abbreviation: string } | null;
+    }>).map((r) => ({
       id: r.id,
       createdAt: r.created_at.toISOString(),
       amendmentReason: r.amendment_reason,
@@ -197,7 +221,17 @@ export async function GET(request: Request): Promise<NextResponse> {
       },
       orderBy: { created_at: "desc" },
     });
-    amendments = records.map((r) => ({
+    amendments = (records as Array<{
+      id: string;
+      zone_number: number;
+      start_reference: string;
+      end_reference: string;
+      status: string;
+      amendment_reason: string | null;
+      superseded_at: Date | null;
+      created_at: Date;
+      round: { round_number: number } | null;
+    }>).map((r) => ({
       id: r.id,
       createdAt: r.created_at.toISOString(),
       amendmentReason: r.amendment_reason,
