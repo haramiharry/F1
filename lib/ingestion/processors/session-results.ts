@@ -64,13 +64,13 @@ export async function processSessionResults(
   // Resolve all driver abbreviations up front so unknown drivers fail fast
   // before the transaction opens.
   const abbreviations = [
-    ...new Set(scraped.results.map((r) => r.driverAbbreviation)),
+    ...new Set(scraped.results.map((r: { driverAbbreviation: string }) => r.driverAbbreviation)),
   ];
   const drivers = await prisma.driver.findMany({
     where: { abbreviation: { in: abbreviations } },
     select: { id: true, abbreviation: true },
   });
-  const driverMap = new Map(drivers.map((d) => [d.abbreviation, d.id]));
+  const driverMap = new Map(drivers.map((d: { abbreviation: string; id: string }) => [d.abbreviation, d.id]));
 
   for (const abbrev of abbreviations) {
     if (!driverMap.has(abbrev)) errors.push(`Driver not found: ${abbrev}`);

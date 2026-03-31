@@ -24,7 +24,7 @@ import { WeekendScreen } from "@/components/weekend/weekend-screen";
 import type { WeekendScreenProps, SessionTabKey } from "@/components/weekend/weekend-screen";
 import type { CarLapEntry } from "@/components/charts/lap-time-distribution";
 import type { AeroEntry } from "@/components/charts/aero-mode-advantage";
-import type { WeekendApiResponse, WeekendRound } from "@/lib/api/types";
+import type { WeekendApiResponse, WeekendRound, WeekendLapEntry, WeekendSessionMeta } from "@/lib/api/types";
 import type { TeamSlug, ConfidenceTier, SourceVariant } from "@/lib/ui/tokens";
 
 const POLL_INTERVAL_MS = 30_000;
@@ -65,7 +65,7 @@ function toWeekendProps(round: WeekendRound, liveData: boolean): WeekendScreenPr
     }
     const laps = round.lapEntries[st];
     if (laps) {
-      lapEntries[st] = laps.map((e) => ({
+      lapEntries[st] = laps.map((e: WeekendLapEntry) => ({
         carId: e.carId,
         teamSlug: e.teamSlug as TeamSlug,
         label: e.label,
@@ -107,7 +107,7 @@ function toWeekendProps(round: WeekendRound, liveData: boolean): WeekendScreenPr
 // Build a string that changes whenever a new session ends.
 function sessionSignature(round: WeekendRound): string {
   return round.sessions
-    .map((s) => `${s.sessionType}:${s.endedAt ?? "pending"}`)
+    .map((s: WeekendSessionMeta) => `${s.sessionType}:${s.endedAt ?? "pending"}`)
     .join("|");
 }
 

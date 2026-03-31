@@ -76,7 +76,20 @@ export async function GET(request: Request): Promise<NextResponse> {
     }),
   ]);
 
-  const ccpByCar = new Map(ccpRecords.map((r) => [r.car_id, r]));
+  const ccpByCar = new Map((ccpRecords as Array<{
+    car_id: string;
+    one_lap_pace: number | null;
+    long_run_pace: number | null;
+    straight_line_efficiency: number | null;
+    cornering_performance: number | null;
+    tyre_behaviour: number | null;
+    x_mode_effectiveness: number | null;
+    z_mode_effectiveness: number | null;
+    depends_on_dab_zones: boolean;
+    recalculation_required: boolean;
+    amendment_reason: string | null;
+    provenance: { is_stale: boolean } | null;
+  }>).map((r) => [r.car_id, r]));
 
   const result: CarsApiResponse = {
     season: SEASON,

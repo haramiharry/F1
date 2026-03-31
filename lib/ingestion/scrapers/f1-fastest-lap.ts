@@ -140,5 +140,5 @@ export async function fetchFastestLaps(
   return rows
     .map((cells) => parseRow(cells, season, url, rawHtmlHash, accessedAt))
     .filter((r): r is ScrapedFastestLap => r !== null)
-    .filter((r) => targetRound === undefined || r.roundNumber === targetRound);
+    .filter((r: ScrapedFastestLap) => targetRound === undefined || r.roundNumber === targetRound);
 }

@@ -101,7 +101,7 @@ export async function calculateRoundAggregate(
     // one_lap_pace: inverse-normalised finishing position.
     // Winner (pos=1) scores 10; last classified scores ~0.
     const positions = carRaceResults
-      .map((r) => r.position)
+      .map((r: { position: number | null }) => r.position)
       .filter((p): p is number => p !== null);
 
     const bestPosition = positions.length > 0 ? Math.min(...positions) : null;
@@ -114,11 +114,11 @@ export async function calculateRoundAggregate(
     // long_run_pace: car's best lap time relative to field median.
     // Positive delta from median → score above 5; negative → below 5.
     const carLapTimes = carRaceResults
-      .map((r) => r.lap_time_ms)
+      .map((r: { lap_time_ms: number | null }) => r.lap_time_ms)
       .filter((t): t is number => t !== null);
 
     const allLapTimes = results
-      .map((r) => r.lap_time_ms)
+      .map((r: { lap_time_ms: number | null }) => r.lap_time_ms)
       .filter((t): t is number => t !== null)
       .sort((a, b) => a - b);
 

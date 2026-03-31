@@ -109,7 +109,7 @@ async function loadPacePoints(
     });
 
     const paces = fieldRecords
-      .map((r) => r.one_lap_pace)
+      .map((r: { one_lap_pace: number | null }) => r.one_lap_pace)
       .filter((p): p is number => p !== null);
 
     if (paces.length < 2) continue;

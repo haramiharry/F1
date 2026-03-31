@@ -76,7 +76,7 @@ function RevisedTag() {
 
 function ComparePanel({ slugs, allCars }: { slugs: TeamSlug[]; allCars: CarPerfRow[] }) {
   const cars = slugs
-    .map((s) => allCars.find((c) => c.teamSlug === s))
+    .map((s: TeamSlug) => allCars.find((c: CarPerfRow) => c.teamSlug === s))
     .filter(Boolean) as CarPerfRow[];
   if (cars.length === 0) return null;
 

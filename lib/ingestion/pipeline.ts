@@ -166,7 +166,7 @@ export async function ingestSession({
       roundNumber
     );
     if (!perfResult.success) {
-      perfErrors = perfResult.errors.map((e) => `[performance] ${e}`);
+      perfErrors = perfResult.errors.map((e: string) => `[performance] ${e}`);
     }
   }
 
@@ -202,7 +202,7 @@ export async function ingestSession({
       sessionType,
     });
     if (!predResult.success) {
-      predictionErrors = predResult.errors.map((e) => `[predictions] ${e}`);
+      predictionErrors = predResult.errors.map((e: string) => `[predictions] ${e}`);
     }
   }
 

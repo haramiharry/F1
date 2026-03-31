@@ -273,9 +273,18 @@ export default async function DashboardPage() {
       })
     : [];
 
-  const ccpByCar = new Map(ccpRecords.map((r) => [r.car_id, r]));
+  const ccpByCar = new Map((ccpRecords as Array<{
+    car_id: string;
+    one_lap_pace: number | null;
+    amendment_reason: string | null;
+    provenance: { is_stale: boolean } | null;
+  }>).map((r) => [r.car_id, r]));
 
-  const carItems = cars.map((c) => {
+  const carItems = (cars as Array<{
+    id: string;
+    designation: string;
+    team: { slug: string };
+  }>).map((c) => {
     const ccp = ccpByCar.get(c.id) ?? null;
     return {
       teamSlug: c.team.slug as TeamSlug,
@@ -326,7 +335,12 @@ export default async function DashboardPage() {
       }
     : null;
 
-  const upcomingRounds = upcomingRoundsRaw.map((r) => {
+  const upcomingRounds = (upcomingRoundsRaw as Array<{
+    round_number: number;
+    name: string;
+    circuit: { name: string; country: string };
+    sessions: Array<{ scheduled_start: Date }>;
+  }>).map((r) => {
     const raceStart = r.sessions[0]?.scheduled_start ?? null;
     const dateLabel = raceStart
       ? new Date(raceStart).toLocaleDateString("en-GB", {

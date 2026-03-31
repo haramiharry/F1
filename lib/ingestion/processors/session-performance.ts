@@ -129,7 +129,7 @@ export async function processSessionPerformance(
 
   // Field-wide lap times for normalisation.
   const allLapTimes = results
-    .map((r) => r.lap_time_ms)
+    .map((r: { lap_time_ms: number | null }) => r.lap_time_ms)
     .filter((t): t is number => t !== null)
     .sort((a, b) => a - b);
 
@@ -162,7 +162,7 @@ export async function processSessionPerformance(
 
   for (const [carId, carSessionResults] of carResults) {
     const carLapTimes = carSessionResults
-      .map((r) => r.lap_time_ms)
+      .map((r: { lap_time_ms: number | null }) => r.lap_time_ms)
       .filter((t): t is number => t !== null);
 
     const carBest = carLapTimes.length > 0 ? Math.min(...carLapTimes) : null;

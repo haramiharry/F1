@@ -109,7 +109,7 @@ export async function computeFastestLapPrediction(
   });
 
   const fieldPaces = fieldRecords
-    .map((r) => r.one_lap_pace)
+    .map((r: { one_lap_pace: number | null }) => r.one_lap_pace)
     .filter((p): p is number => p !== null);
 
   // Default to 5.0 (mid-range of the 0–10 scale) when no field data exists yet.
@@ -126,7 +126,7 @@ export async function computeFastestLapPrediction(
   if (carCircuitRecords.length > 0) {
     // Car has 2026 data at this circuit.
     const carPaces = carCircuitRecords
-      .map((r) => r.one_lap_pace)
+      .map((r: { one_lap_pace: number | null }) => r.one_lap_pace)
       .filter((p): p is number => p !== null);
     carPace = carPaces.reduce((s, p) => s + p, 0) / carPaces.length;
     confidence = dataPointsToConfidence(carCircuitRecords.length);
@@ -170,7 +170,7 @@ export async function computeFastestLapPrediction(
       });
 
       const simPaces = simFieldRecords
-        .map((r) => r.one_lap_pace)
+        .map((r: { one_lap_pace: number | null }) => r.one_lap_pace)
         .filter((p): p is number => p !== null);
 
       if (simPaces.length === 0) continue;
@@ -189,7 +189,7 @@ export async function computeFastestLapPrediction(
     // Re-express as absolute pace: field mean at target circuit + weighted delta.
     carPace = fieldMean + avgWeightedDelta;
     confidence = "low";
-    const ids = similarCircuits.map((s) => s.circuitId.slice(0, 8)).join(", ");
+    const ids = similarCircuits.map((s: { circuitId: string }) => s.circuitId.slice(0, 8)).join(", ");
     dataSourceNote = `circuit similarity (${similarCircuits.length} circuits: ${ids}…)`;
   }
 

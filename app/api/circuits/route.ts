@@ -47,7 +47,30 @@ export async function GET(): Promise<NextResponse> {
     orderBy: { name: "asc" },
   });
 
-  const result = circuits.map((c) => {
+  const result = (circuits as Array<{
+    id: string;
+    slug: string;
+    name: string;
+    short_name: string;
+    country: string;
+    lap_length_km: number;
+    total_laps_race: number;
+    profile: {
+      drag_sensitivity: number | null;
+      traction_demand: number | null;
+      braking_intensity: number | null;
+      overtaking_potential: number | null;
+      aero_zone_value: number | null;
+      baseline_fastest_lap_s: number | null;
+      provenance: { is_stale: boolean } | null;
+    } | null;
+    rounds: Array<{
+      round_number: number;
+      name: string;
+      dab_zones_confirmed: boolean;
+      status: string;
+    }>;
+  }>).map((c) => {
     const round = c.rounds[0] ?? null;
     return {
       id: c.id,

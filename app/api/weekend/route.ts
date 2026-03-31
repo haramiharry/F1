@@ -68,10 +68,10 @@ export async function GET(): Promise<NextResponse> {
 
   // Completed sessions: needed to decide which sessions have lap entry data.
   const completedSessions = activeRound.sessions.filter((s) => s.ended_at !== null);
-  const completedSessionIds = completedSessions.map((s) => s.id);
+  const completedSessionIds = completedSessions.map((s: { id: string }) => s.id);
 
   // All cars for the season (team slug + designation).
-  const cars = await prisma.car.findMany({
+  const cars: Array<{ id: string; designation: string; team: { slug: string; name: string } }> = await prisma.car.findMany({
     where: { season: SEASON },
     select: {
       id: true,
@@ -83,7 +83,14 @@ export async function GET(): Promise<NextResponse> {
   const carByTeamSlug = new Map(cars.map((c) => [c.team.slug, c]));
 
   // CCP records for all non-aggregate session types for this round.
-  const ccpRecords = await prisma.carCircuitPerformance.findMany({
+  const ccpRecords: Array<{
+    car_id: string;
+    session_type: string;
+    one_lap_pace: number | null;
+    long_run_pace: number | null;
+    recalculation_required: boolean;
+    provenance: { is_stale: boolean } | null;
+  }> = await prisma.carCircuitPerformance.findMany({
     where: {
       round_id: roundId,
       circuit_id: circuitId,
@@ -101,7 +108,12 @@ export async function GET(): Promise<NextResponse> {
   });
 
   // Round aggregate CCP for aero entries.
-  const roundAggCcp = await prisma.carCircuitPerformance.findMany({
+  const roundAggCcp: Array<{
+    car_id: string;
+    x_mode_effectiveness: number | null;
+    z_mode_effectiveness: number | null;
+    depends_on_dab_zones: boolean;
+  }> = await prisma.carCircuitPerformance.findMany({
     where: {
       round_id: roundId,
       circuit_id: circuitId,
@@ -117,7 +129,14 @@ export async function GET(): Promise<NextResponse> {
   });
 
   // Fastest lap predictions for this circuit.
-  const predictions = await prisma.prediction.findMany({
+  const predictions: Array<{
+    car_id: string | null;
+    predicted_value: number | null;
+    predicted_value_display: string | null;
+    margin_of_error_ms: number | null;
+    confidence: string;
+    source_type: string;
+  }> = await prisma.prediction.findMany({
     where: {
       circuit_id: circuitId,
       prediction_type: "fastest_lap",
@@ -175,10 +194,12 @@ export async function GET(): Promise<NextResponse> {
     // Get all referenced team IDs to batch-load team slugs.
     const teamIds = [
       ...new Set(
-        sessionResults.flatMap((r) => r.driver.stints.map((s) => s.team_id))
+        sessionResults.flatMap((r: { driver: { stints: { team_id: string }[] } }) =>
+          r.driver.stints.map((s: { team_id: string }) => s.team_id)
+        )
       ),
     ];
-    const teams = await prisma.team.findMany({
+    const teams: Array<{ id: string; slug: string; name: string }> = await prisma.team.findMany({
       where: { id: { in: teamIds } },
       select: { id: true, slug: true, name: true },
     });
@@ -266,7 +287,7 @@ export async function GET(): Promise<NextResponse> {
     : [];
 
   const availableSessions = activeRound.sessions
-    .map((s) => s.session_type)
+    .map((s: { session_type: string }) => s.session_type)
     .filter((st) => VALID_TAB_SESSIONS.has(st));
 
   const round: WeekendRound = {
@@ -279,7 +300,14 @@ export async function GET(): Promise<NextResponse> {
     circuitCountry: activeRound.circuit.country,
     circuitSlug: activeRound.circuit.slug,
     dabZonesConfirmed: activeRound.dab_zones_confirmed,
-    sessions: activeRound.sessions.map((s) => ({
+    sessions: activeRound.sessions.map((s: {
+      id: string;
+      session_type: string;
+      scheduled_start: Date;
+      actual_start: Date | null;
+      ended_at: Date | null;
+      session_cancelled: boolean;
+    }) => ({
       id: s.id,
       sessionType: s.session_type,
       scheduledStart: s.scheduled_start.toISOString(),
