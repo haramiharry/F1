@@ -269,7 +269,14 @@ export default async function CircuitDetailPage({
                 {circuit.dab_zones.length} zone{circuit.dab_zones.length !== 1 ? "s" : ""} confirmed
               </p>
             </div>
-            {circuit.dab_zones.map((zone) => (
+            {(circuit.dab_zones as Array<{
+              id: string;
+              zone_number: number;
+              start_reference: string;
+              end_reference: string;
+              activation_direction: string;
+              status: string;
+            }>).map((zone) => (
               <div
                 key={zone.id}
                 className="flex items-center justify-between px-3 py-2 rounded-badge bg-surface-elevated border border-border text-caption"
@@ -334,7 +341,15 @@ export default async function CircuitDetailPage({
           </>
         ) : (
           <div className="space-y-px">
-            {fitPredictions.map((pred) => {
+            {(fitPredictions as Array<{
+              id: string;
+              car_id: string | null;
+              predicted_value: number | null;
+              confidence: string;
+              round_valid_from: number;
+              car: { designation: string; team: { slug: string; name: string } } | null;
+              provenance: { is_stale: boolean } | null;
+            }>).map((pred) => {
               const teamSlug = pred.car?.team.slug as TeamSlug | undefined;
               const color = teamSlug ? TEAM_COLORS[teamSlug] : "#666666";
               const teamName = teamSlug

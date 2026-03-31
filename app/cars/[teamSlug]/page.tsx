@@ -129,7 +129,7 @@ export default async function CarDetailPage({
     where: { car_id: car.id },
     select: { field_name: true, status: true },
   });
-  const fieldStatusMap = new Map(fieldStatuses.map((f) => [f.field_name, f.status]));
+  const fieldStatusMap = new Map((fieldStatuses as Array<{ field_name: string; status: string }>).map((f) => [f.field_name, f.status]));
 
   function isConfirmed(fieldName: string, value: unknown): boolean {
     const status = fieldStatusMap.get(fieldName);
@@ -349,7 +349,16 @@ export default async function CarDetailPage({
             )}
 
             <div className="space-y-px">
-              {predictions.map((pred) => (
+              {(predictions as Array<{
+                id: string;
+                predicted_value_display: string | null;
+                margin_of_error_ms: number | null;
+                confidence: string;
+                source_type: string;
+                round_valid_from: number;
+                circuit: { name: string; slug: string; country: string };
+                provenance: { is_stale: boolean } | null;
+              }>).map((pred) => (
                 <div
                   key={pred.id}
                   className="flex items-center gap-3 py-2.5 border-b border-border last:border-0"

@@ -24,7 +24,7 @@ import { WeekendScreen } from "@/components/weekend/weekend-screen";
 import type { WeekendScreenProps, SessionTabKey } from "@/components/weekend/weekend-screen";
 import type { CarLapEntry } from "@/components/charts/lap-time-distribution";
 import type { AeroEntry } from "@/components/charts/aero-mode-advantage";
-import type { WeekendApiResponse, WeekendRound, WeekendLapEntry, WeekendSessionMeta } from "@/lib/api/types";
+import type { WeekendApiResponse, WeekendRound, WeekendLapEntry, WeekendSessionMeta, WeekendSessionResult, WeekendPrediction } from "@/lib/api/types";
 import type { TeamSlug, ConfidenceTier, SourceVariant } from "@/lib/ui/tokens";
 
 const POLL_INTERVAL_MS = 30_000;
@@ -40,7 +40,7 @@ const VALID_TAB_SESSIONS: SessionTabKey[] = [
 function toWeekendProps(round: WeekendRound, liveData: boolean): WeekendScreenProps {
   const emptyMetrics = Object.fromEntries(
     VALID_TAB_SESSIONS.map((st) => [st, []])
-  ) as Record<SessionTabKey, WeekendScreenProps["sessionMetrics"][SessionTabKey]>;
+  ) as unknown as Record<SessionTabKey, WeekendScreenProps["sessionMetrics"][SessionTabKey]>;
 
   const emptyLapEntries = Object.fromEntries(
     VALID_TAB_SESSIONS.map((st) => [st, [] as CarLapEntry[]])
@@ -52,7 +52,7 @@ function toWeekendProps(round: WeekendRound, liveData: boolean): WeekendScreenPr
   for (const st of VALID_TAB_SESSIONS) {
     const metrics = round.sessionMetrics[st];
     if (metrics) {
-      sessionMetrics[st] = metrics.map((m) => ({
+      sessionMetrics[st] = metrics.map((m: WeekendSessionResult) => ({
         carId: m.carId,
         teamSlug: m.teamSlug as TeamSlug,
         designation: m.designation,
@@ -91,7 +91,7 @@ function toWeekendProps(round: WeekendRound, liveData: boolean): WeekendScreenPr
     lapEntries,
     aeroEntries: round.aeroEntries as AeroEntry[],
     dabZonesConfirmed: round.dabZonesConfirmed,
-    fastestLapPredictions: round.predictions.map((p) => ({
+    fastestLapPredictions: round.predictions.map((p: WeekendPrediction) => ({
       carId: p.carId,
       teamSlug: p.teamSlug as TeamSlug,
       label: p.label,

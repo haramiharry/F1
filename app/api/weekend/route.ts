@@ -174,7 +174,7 @@ export async function GET(): Promise<NextResponse> {
         gap_to_leader_ms: true,
         driver: {
           select: {
-            stints: {
+            team_stints: {
               where: {
                 season: SEASON,
                 from_round: { lte: activeRound.round_number },
@@ -194,8 +194,8 @@ export async function GET(): Promise<NextResponse> {
     // Get all referenced team IDs to batch-load team slugs.
     const teamIds = [
       ...new Set(
-        sessionResults.flatMap((r: { driver: { stints: { team_id: string }[] } }) =>
-          r.driver.stints.map((s: { team_id: string }) => s.team_id)
+        sessionResults.flatMap((r: { driver: { team_stints: { team_id: string }[] } }) =>
+          r.driver.team_stints.map((s: { team_id: string }) => s.team_id)
         )
       ),
     ];
@@ -207,7 +207,7 @@ export async function GET(): Promise<NextResponse> {
 
     // Build best-lap-per-car-per-session map (key = sessionId:teamSlug).
     for (const result of sessionResults) {
-      const stint = result.driver.stints[0];
+      const stint = result.driver.team_stints[0];
       if (!stint) continue;
       const team = teamById.get(stint.team_id);
       if (!team) continue;

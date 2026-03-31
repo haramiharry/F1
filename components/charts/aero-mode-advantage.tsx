@@ -124,8 +124,8 @@ export function AeroModeAdvantage({
                   borderRadius: "0.5rem",
                   fontSize: "0.6875rem",
                 }}
-                formatter={(value: number, name: string) => [
-                  value.toFixed(2),
+                formatter={(value, name) => [
+                  typeof value === "number" ? value.toFixed(2) : String(value ?? ""),
                   name === "xMode" ? "X-Mode" : "Z-Mode",
                 ]}
               />

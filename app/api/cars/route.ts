@@ -95,7 +95,7 @@ export async function GET(request: Request): Promise<NextResponse> {
     season: SEASON,
     asOfRound: latestActiveRound?.round_number ?? null,
     roundIsLive: activeRound !== null,
-    cars: cars.map((car) => {
+    cars: (cars as Array<{ id: string; designation: string; team: { slug: string; name: string } }>).map((car) => {
       const ccp = ccpByCar.get(car.id) ?? null;
       return {
         id: car.id,

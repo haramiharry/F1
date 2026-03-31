@@ -126,7 +126,14 @@ export async function findSimilarCircuits(
     },
   });
 
-  const scored: CircuitSimilarityScore[] = allProfiles.map((p) => {
+  const scored: CircuitSimilarityScore[] = (allProfiles as Array<{
+    circuit_id: string;
+    drag_sensitivity: number;
+    traction_demand: number;
+    braking_intensity: number;
+    overtaking_potential: number;
+    aero_zone_value: number;
+  }>).map((p) => {
     const distance = circuitDistance(targetProfile, p);
     return {
       circuitId: p.circuit_id,

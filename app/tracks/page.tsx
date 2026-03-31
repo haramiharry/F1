@@ -113,7 +113,24 @@ export default async function TracksPage() {
         </p>
       ) : (
         <div className="space-y-3">
-          {circuits.map((circuit) => {
+          {(circuits as Array<{
+            id: string;
+            slug: string;
+            name: string;
+            short_name: string;
+            country: string;
+            lap_length_km: number;
+            total_laps_race: number;
+            profile: {
+              drag_sensitivity: number | null;
+              traction_demand: number | null;
+              braking_intensity: number | null;
+              overtaking_potential: number | null;
+              aero_zone_value: number | null;
+              provenance: { is_stale: boolean } | null;
+            } | null;
+            rounds: { round_number: number; name: string; dab_zones_confirmed: boolean; status: string }[];
+          }>).map((circuit) => {
             const round = circuit.rounds[0] ?? null;
             const isStale = circuit.profile?.provenance?.is_stale ?? false;
 

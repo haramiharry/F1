@@ -44,7 +44,7 @@ function buildPrismaClient() {
   // Intercepts read operations on soft-deletable models and injects
   // { deleted_at: null } into the WHERE clause automatically.
   // ---------------------------------------------------------------------------
-  client.$use(async (params: Prisma.MiddlewareParams, next) => {
+  (client as any).$use(async (params: any, next: any) => {
     if (params.model && SOFT_DELETE_MODELS.includes(params.model)) {
       if (
         params.action === "findUnique" ||

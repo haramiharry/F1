@@ -115,7 +115,15 @@ export async function GET(
     dabZonesConfirmed: upcomingRound?.dab_zones_confirmed ?? false,
     dabZoneCount: circuit.dab_zones.length,
     dabZones: circuit.dab_zones,
-    carFitScores: fitPredictions.map((p) => ({
+    carFitScores: (fitPredictions as Array<{
+      id: string;
+      car_id: string | null;
+      predicted_value: number | null;
+      confidence: string;
+      round_valid_from: number;
+      car: { id: string; designation: string; team: { slug: string; name: string } } | null;
+      provenance: { is_stale: boolean } | null;
+    }>).map((p) => ({
       carId: p.car_id ?? "",
       teamSlug: p.car?.team.slug ?? "",
       teamName: p.car?.team.name ?? "",
