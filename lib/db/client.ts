@@ -1,21 +1,26 @@
 /**
- * Prisma client singleton with soft-delete middleware.
+ * Prisma client singleton with soft-delete query extension.
  *
- * Soft-delete middleware behavior:
- *   - findUnique / findFirst / findMany on soft-deletable models automatically
- *     filter WHERE deleted_at IS NULL.
+ * Prisma 7 requires a database adapter — this module uses @prisma/adapter-libsql
+ * backed by @libsql/client, which speaks the libsql protocol and supports the
+ * "file:" scheme for local SQLite databases.
+ *
+ * Soft-delete extension behavior:
+ *   - findFirst / findFirstOrThrow / findMany / count on soft-deletable models
+ *     automatically filter WHERE deleted_at IS NULL.
+ *   - findUnique is NOT intercepted (Prisma requires unique-field-only WHERE on
+ *     findUnique; the app uses findFirst for any query that needs the filter).
  *   - Queries that explicitly need deleted records must use the raw client:
  *     import { rawPrisma } from './client'
- *   - Models WITHOUT deleted_at (fastest_laps, circuit_dab_zones, predictions,
- *     source_provenance, admin_review_queue) are NOT in SOFT_DELETE_MODELS
- *     and are unaffected by this middleware.
+ *   - Models WITHOUT deleted_at are NOT in SOFT_DELETE_MODELS and are unaffected.
  *
- * The middleware is applied once at module load. All application queries go
+ * The extension is applied once at module load. All application queries go
  * through `prisma` and get the filter for free. Admin audit views and amendment
  * history panels use `rawPrisma` to see full record sets including deleted rows.
  */
 
 import { PrismaClient, Prisma } from "@prisma/client";
+import { PrismaLibSql } from "@prisma/adapter-libsql";
 
 // Models that carry a deleted_at field and must be filtered by default.
 // Any model added to this list must have deleted_at: DateTime? in the schema.
@@ -31,87 +36,84 @@ const SOFT_DELETE_MODELS: Prisma.ModelName[] = [
   "CarCircuitPerformance",
 ];
 
+function makeAdapter() {
+  const url = process.env.DATABASE_URL ?? "file:./dev.db";
+  return new PrismaLibSql({ url });
+}
+
 function buildPrismaClient() {
-  const client = new PrismaClient({
+  const base = new PrismaClient({
     log:
       process.env.NODE_ENV === "development"
         ? ["query", "warn", "error"]
         : ["warn", "error"],
+    adapter: makeAdapter(),
   });
 
-  // ---------------------------------------------------------------------------
-  // Soft-delete middleware
+  // -------------------------------------------------------------------------
+  // Soft-delete extension (replaces $use middleware removed in Prisma 7).
   // Intercepts read operations on soft-deletable models and injects
   // { deleted_at: null } into the WHERE clause automatically.
-  // ---------------------------------------------------------------------------
-  (client as any).$use(async (params: any, next: any) => {
-    if (params.model && SOFT_DELETE_MODELS.includes(params.model)) {
-      if (
-        params.action === "findUnique" ||
-        params.action === "findFirst" ||
-        params.action === "findUniqueOrThrow" ||
-        params.action === "findFirstOrThrow"
-      ) {
-        // findUnique with a where filter that includes deleted_at guard
-        // must be promoted to findFirst (findUnique doesn't support extra where clauses
-        // beyond unique fields in Prisma)
-        params.action = "findFirst";
-        params.args = params.args ?? {};
-        params.args.where = {
-          ...params.args.where,
-          deleted_at: null,
-        };
-      }
-
-      if (params.action === "findMany") {
-        params.args = params.args ?? {};
-        params.args.where = {
-          ...params.args.where,
-          deleted_at: null,
-        };
-      }
-
-      // count also respects the soft-delete filter
-      if (params.action === "count") {
-        params.args = params.args ?? {};
-        params.args.where = {
-          ...params.args.where,
-          deleted_at: null,
-        };
-      }
-    }
-
-    return next(params);
+  // -------------------------------------------------------------------------
+  return base.$extends({
+    query: {
+      $allModels: {
+        async findFirst({ model, args, query }: any) {
+          if (SOFT_DELETE_MODELS.includes(model)) {
+            args = { ...args, where: { ...args.where, deleted_at: null } };
+          }
+          return query(args);
+        },
+        async findFirstOrThrow({ model, args, query }: any) {
+          if (SOFT_DELETE_MODELS.includes(model)) {
+            args = { ...args, where: { ...args.where, deleted_at: null } };
+          }
+          return query(args);
+        },
+        async findMany({ model, args, query }: any) {
+          if (SOFT_DELETE_MODELS.includes(model)) {
+            args = { ...args, where: { ...args.where, deleted_at: null } };
+          }
+          return query(args);
+        },
+        async count({ model, args, query }: any) {
+          if (SOFT_DELETE_MODELS.includes(model)) {
+            args = { ...args, where: { ...args.where, deleted_at: null } };
+          }
+          return query(args);
+        },
+      },
+    },
   });
-
-  return client;
 }
+
+type ExtendedPrismaClient = ReturnType<typeof buildPrismaClient>;
 
 // ---------------------------------------------------------------------------
 // Singleton pattern: reuse the client across hot-reloads in development.
 // In production, module cache ensures a single instance.
 // ---------------------------------------------------------------------------
 const globalForPrisma = globalThis as unknown as {
-  prisma: PrismaClient | undefined;
+  prisma: ExtendedPrismaClient | undefined;
   rawPrisma: PrismaClient | undefined;
 };
 
 /**
- * Default client — soft-delete middleware applied.
+ * Default client — soft-delete extension applied.
  * Use this for all standard application queries.
  */
-export const prisma: PrismaClient =
+export const prisma: ExtendedPrismaClient =
   globalForPrisma.prisma ?? buildPrismaClient();
 
 /**
- * Raw client — no middleware.
+ * Raw client — no extension.
  * Use only for:
  *   - Admin audit views that need to see deleted records
  *   - Amendment history panels (all revisions including superseded)
  *   - Migration scripts
  */
 export const rawPrisma: PrismaClient =
-  globalForPrisma.rawPrisma ?? new PrismaClient();
+  globalForPrisma.rawPrisma ?? new PrismaClient({ adapter: makeAdapter() });
 
 if (process.env.NODE_ENV !== "production") {
   globalForPrisma.prisma = prisma;
@@ -120,8 +122,7 @@ if (process.env.NODE_ENV !== "production") {
 
 /**
  * Type for the transaction client passed to prisma.$transaction callbacks.
- * Derived from the prisma instance so it works regardless of whether
- * prisma generate has run (avoids the unstable Prisma namespace export).
+ * Derived from the prisma instance so it stays in sync with extensions.
  */
 export type TransactionClient = Parameters<
   Parameters<typeof prisma.$transaction>[0]
