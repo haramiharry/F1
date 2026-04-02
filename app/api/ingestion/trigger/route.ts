@@ -9,7 +9,7 @@
 //   season: number,
 //   roundNumber: number,
 //   sessionType: "fp1"|"fp2"|"fp3"|"qualifying"|"sprint_qualifying"|"sprint"|"race",
-//   circuitSlug: string,          // e.g. "australia" — matches Formula1.com URL slug
+//   circuitSlug?: string,         // e.g. "australia" — if omitted, looked up from DB
 //   includeFastestLap?: boolean,  // defaults to true for race sessions
 // }
 //
@@ -17,6 +17,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { ingestSession, ingestFastestLap } from "@/lib/ingestion/pipeline";
+import { prisma } from "@/lib/db/client";
 import type { IngestableSessionType } from "@/lib/ingestion/types";
 
 const VALID_SESSION_TYPES = new Set<string>([
@@ -45,20 +46,19 @@ export async function POST(req: NextRequest) {
     season,
     roundNumber,
     sessionType,
-    circuitSlug,
+    circuitSlug: circuitSlugParam,
     includeFastestLap,
   } = body as Record<string, unknown>;
 
   if (
     typeof season !== "number" ||
     typeof roundNumber !== "number" ||
-    typeof sessionType !== "string" ||
-    typeof circuitSlug !== "string"
+    typeof sessionType !== "string"
   ) {
     return NextResponse.json(
       {
         error:
-          "Required fields: season (number), roundNumber (number), sessionType (string), circuitSlug (string)",
+          "Required fields: season (number), roundNumber (number), sessionType (string). circuitSlug (string) is optional — looked up from DB when omitted.",
       },
       { status: 400 }
     );
@@ -73,6 +73,24 @@ export async function POST(req: NextRequest) {
       },
       { status: 400 }
     );
+  }
+
+  // Resolve circuitSlug: use the provided value or look it up from the DB.
+  let circuitSlug: string;
+  if (typeof circuitSlugParam === "string" && circuitSlugParam.length > 0) {
+    circuitSlug = circuitSlugParam;
+  } else {
+    const round = await prisma.round.findFirst({
+      where: { season, round_number: roundNumber },
+      select: { circuit: { select: { slug: true } } },
+    });
+    if (!round) {
+      return NextResponse.json(
+        { error: `Round ${roundNumber} of season ${season} not found in database` },
+        { status: 404 }
+      );
+    }
+    circuitSlug = round.circuit.slug;
   }
 
   const sessionResult = await ingestSession({
