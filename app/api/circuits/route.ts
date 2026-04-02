@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 // GET /api/circuits
 //
 // Returns all circuits with their 2026 round assignments and circuit profile

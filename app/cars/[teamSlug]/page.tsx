@@ -1,6 +1,7 @@
 // Car Detail View — full profile for one constructor's 2026 car.
 //
 // All spec data comes from the Car model + CarFieldStatus (DB), not hardcoded.
+export const dynamic = "force-dynamic";
 // Predictions come from DB (Prediction table, prediction_type='fastest_lap').
 //
 // URL params:

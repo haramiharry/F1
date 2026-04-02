@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 // Manual analytics recalculation endpoint.
 //
 // Forces re-enrichment of CarCircuitPerformance records that either:

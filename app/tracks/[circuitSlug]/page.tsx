@@ -1,6 +1,7 @@
 // Circuit Detail — profile, car fit scores, DAB zones, fastest lap predictions.
 //
 // All data from DB (server component Prisma queries). No hardcoded profiles.
+export const dynamic = "force-dynamic";
 //
 // Sections:
 //   Circuit Profile  — 5 profile dimensions with 0–10 bars; aero_zone_value tagged "New 2026"

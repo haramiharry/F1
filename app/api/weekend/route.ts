@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 // GET /api/weekend
 //
 // Returns the currently in-progress round with all session data, car metrics,

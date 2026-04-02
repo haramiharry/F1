@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 // Admin endpoint: promote a staged DAB zone to live circuit_dab_zones.
 //
 // Amendment chain logic:

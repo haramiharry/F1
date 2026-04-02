@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 // Admin endpoint: parse and stage DAB zone data.
 //
 // DAB zone ingestion is manual-only — no automated scraping.

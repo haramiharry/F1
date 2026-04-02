@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 // GET /api/predictions/[carId]/[circuitId]
 //
 // Returns all active (non-superseded) predictions for a car × circuit pair,

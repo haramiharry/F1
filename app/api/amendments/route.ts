@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 // GET /api/amendments
 //
 // Returns the full amendment chain for a given entity.

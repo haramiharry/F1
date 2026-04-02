@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 // GET /api/circuits/[circuitSlug]
 //
 // Returns full circuit detail: profile dimensions, active DAB zones, and

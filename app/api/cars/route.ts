@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 // GET /api/cars
 //
 // Returns all 2026 cars with their latest round_aggregate performance metrics.

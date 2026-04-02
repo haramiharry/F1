@@ -1,6 +1,7 @@
 // Season Dashboard — primary landing view.
 //
 // Data: server-side Prisma queries. No placeholder data.
+export const dynamic = "force-dynamic";
 //
 // Pre-season (no completed/in-progress rounds):
 //   Shows PreSeasonHero with next round callout, car grid (all null pace),

@@ -6,6 +6,7 @@
 // Circuits with no CircuitProfile record show null bars (profile not seeded).
 // dabZonesConfirmed reflects Round.dab_zones_confirmed for the 2026 round.
 // Stale profiles show a StaleTag under the profile bars.
+export const dynamic = "force-dynamic";
 
 import type { Metadata } from "next";
 import Link from "next/link";
