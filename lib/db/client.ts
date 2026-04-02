@@ -1,9 +1,10 @@
 /**
  * Prisma client singleton with soft-delete query extension.
  *
- * Prisma 7 requires a database adapter — this module uses @prisma/adapter-libsql
- * backed by @libsql/client, which speaks the libsql protocol and supports the
- * "file:" scheme for local SQLite databases.
+ * Uses @prisma/adapter-neon backed by @neondatabase/serverless for
+ * PostgreSQL connections to Neon. The Pool is created per process; Vercel
+ * serverless functions get one pool per cold start, reused across requests
+ * within the same instance.
  *
  * Soft-delete extension behavior:
  *   - findFirst / findFirstOrThrow / findMany / count on soft-deletable models
@@ -20,7 +21,7 @@
  */
 
 import { PrismaClient, Prisma } from "@prisma/client";
-import { PrismaLibSql } from "@prisma/adapter-libsql";
+import { PrismaNeon } from "@prisma/adapter-neon";
 
 // Models that carry a deleted_at field and must be filtered by default.
 // Any model added to this list must have deleted_at: DateTime? in the schema.
@@ -37,8 +38,7 @@ const SOFT_DELETE_MODELS: Prisma.ModelName[] = [
 ];
 
 function makeAdapter() {
-  const url = process.env.DATABASE_URL ?? "file:./dev.db";
-  return new PrismaLibSql({ url });
+  return new PrismaNeon({ connectionString: process.env.DATABASE_URL! });
 }
 
 function buildPrismaClient() {

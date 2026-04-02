@@ -11,14 +11,16 @@
 //   npx prisma db seed
 //
 // Prerequisites:
-//   npx prisma migrate dev   (apply schema)
-//   sqlite3 dev.db < prisma/manual/001_session_partial_unique.sql
-//   sqlite3 dev.db < prisma/manual/002_car_circuit_performance_partial_unique.sql
-//   sqlite3 dev.db < prisma/manual/003_predictions_partial_unique.sql
+//   npx prisma migrate deploy  (apply schema)
+//   psql $DATABASE_URL -f prisma/manual/001_session_partial_unique.sql
+//   psql $DATABASE_URL -f prisma/manual/002_car_circuit_performance_partial_unique.sql
+//   psql $DATABASE_URL -f prisma/manual/003_predictions_partial_unique.sql
 
 import { PrismaClient } from "@prisma/client";
+import { PrismaNeon } from "@prisma/adapter-neon";
 
-const prisma = new PrismaClient();
+const adapter = new PrismaNeon({ connectionString: process.env.DATABASE_URL! });
+const prisma = new PrismaClient({ adapter });
 
 async function main() {
   // -------------------------------------------------------------------------

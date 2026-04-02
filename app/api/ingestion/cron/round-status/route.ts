@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 // Cron endpoint: apply time-based round status fallback to all active rounds.
 //
 // Runs independently of ingestSession. Designed to be called by a scheduler

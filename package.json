@@ -21,7 +21,9 @@
   "license": "ISC",
   "dependencies": {
     "@libsql/client": "^0.17.2",
+    "@neondatabase/serverless": "^1.0.2",
     "@prisma/adapter-libsql": "^7.6.0",
+    "@prisma/adapter-neon": "^7.6.0",
     "@prisma/client": "^7.6.0",
     "@types/node": "^25.5.0",
     "@types/react": "^19.2.14",
