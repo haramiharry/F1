@@ -31,6 +31,10 @@
 //
 //   haas (#B6BABD) is near-neutral silver (saturation ≈ 3%) — distinguished from
 //   all blues by saturation alone, not just hue or lightness.
+//
+//   cadillac (#C8A951) — Cadillac gold  HSL(43°, 50%, 55%)
+//     Unique warm-gold hue; no conflict with any existing team color.
+//     On dark bg (#141414): contrast ratio ≈ 5.8:1 — clearly visible.
 // ---------------------------------------------------------------------------
 
 export type TeamSlug =
@@ -43,7 +47,8 @@ export type TeamSlug =
   | "williams"
   | "haas"
   | "sauber"
-  | "racingbulls";
+  | "racingbulls"
+  | "cadillac";
 
 export const TEAM_COLORS: Record<TeamSlug, string> = {
   mercedes:    "#00D2BE",
@@ -56,6 +61,7 @@ export const TEAM_COLORS: Record<TeamSlug, string> = {
   haas:        "#B6BABD",
   sauber:      "#52E252",
   racingbulls: "#818CF8",
+  cadillac:    "#C8A951", // Cadillac gold — unique warm hue, no conflict with any other team
 };
 
 // Human-readable team names keyed by slug.
@@ -70,6 +76,7 @@ export const TEAM_NAMES: Record<TeamSlug, string> = {
   haas:        "Haas",
   sauber:      "Audi / Sauber",
   racingbulls: "Racing Bulls",
+  cadillac:    "Cadillac",
 };
 
 // Tailwind team-stripe utility class names — applied as border-left accents
